@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "consolebox",
+	"version": "${version}",
+	"name": "Console Box",
+	"description": "A game console emulator for Minecraft.",
+	"authors": [
+		"haykam821"
+	],
+	"contact": {
+		"homepage": "https://github.com/haykam821/Console-Box#readme",
+		"issues": "https://github.com/haykam821/Console-Box/issues"
+	},
+	"entrypoints": {
+		"main": [
+			"io.github.haykam821.consolebox.ConsoleBox"
+		]
+	},
+	"mixins": [
+		"consolebox.mixin.json"
+	],
+	"license": "MIT",
+	"depends": {
+		"fabricloader": ">=0.4.0",
+		"plasmid": ">=0.5.0"
+	}
+}

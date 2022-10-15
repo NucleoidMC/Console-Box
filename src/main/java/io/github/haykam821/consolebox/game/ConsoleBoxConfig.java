@@ -1,0 +1,39 @@
+package io.github.haykam821.consolebox.game;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+
+import io.github.haykam821.consolebox.resource.ConsoleGameManager;
+import net.minecraft.SharedConstants;
+import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Vec3f;
+import xyz.nucleoid.plasmid.game.GameOpenException;
+
+public record ConsoleBoxConfig(
+	Identifier game,
+	Vec3d spectatorSpawnOffset,
+	int updatesPerSecond
+) {
+	private static final Vec3d DEFAULT_SPECTATOR_SPAWN_OFFSET = new Vec3d(0, 2, 0);
+	private static final int DEFAULT_UPDATES_PER_SECOND = 60 / SharedConstants.TICKS_PER_SECOND;
+
+	public static final Codec<ConsoleBoxConfig> CODEC = RecordCodecBuilder.create(instance -> {
+		return instance.group(
+			Identifier.CODEC.fieldOf("game").forGetter(ConsoleBoxConfig::game),
+			Vec3f.CODEC.xmap(Vec3d::new, Vec3f::new).optionalFieldOf("spectator_spawn_offset", DEFAULT_SPECTATOR_SPAWN_OFFSET).forGetter(ConsoleBoxConfig::spectatorSpawnOffset),
+			Codec.intRange(0, Integer.MAX_VALUE).optionalFieldOf("updates_per_second", DEFAULT_UPDATES_PER_SECOND).forGetter(ConsoleBoxConfig::updatesPerSecond)
+		).apply(instance, ConsoleBoxConfig::new);
+	});
+
+	public byte[] getGameData() throws GameOpenException {
+		byte[] data = ConsoleGameManager.getGameData(this.game);
+
+		if (data == null) {
+			throw new GameOpenException(Text.translatable("text.consolebox.nonexistent_console_game", this.game));
+		} else {
+			return data;
+		}
+	}
+}
