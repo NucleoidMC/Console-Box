@@ -118,7 +118,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 	public void onTick() {
 		if (this.mainPlayer == null) return;
 
-		this.canvas.tick();
+		this.canvas.tick(this.mainPlayer);
 	}
 
 	@Override
@@ -131,15 +131,10 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
 				this.spawnMount(spawnPos, this.mainPlayer);
 				this.initializePlayer(this.mainPlayer, GameMode.ADVENTURE);
-
-				this.mainPlayer.setPitch(Float.MIN_VALUE);
 			});
 		} else {
 			Vec3d pos = this.mainPlayer.getPos().add(this.config.spectatorSpawnOffset());
 			return offer.accept(this.world, pos).and(() -> {
-				offer.player().setYaw(this.mainPlayer.getYaw());
-				offer.player().setPitch(this.mainPlayer.getPitch());
-
 				this.initializePlayer(offer.player(), GameMode.SPECTATOR);
 			});
 		}
@@ -197,6 +192,9 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 	private void initializePlayer(ServerPlayerEntity player, GameMode gameMode) {
 		player.changeGameMode(gameMode);
 		player.addStatusEffect(this.createInfiniteStatusEffect(StatusEffects.NIGHT_VISION));
+
+		player.setYaw(this.canvas.getSpawnAngle());
+		player.setPitch(Float.MIN_VALUE);
 	}
 
 	private StatusEffectInstance createInfiniteStatusEffect(StatusEffect statusEffect) {

@@ -226,6 +226,10 @@ public final class FramebufferRendering {
 		}
 	}
 
+	private static byte getInbound(ByteBuffer buffer, int index) {
+		return index < 0 || index >= buffer.limit() ? 0 : buffer.get(index);
+	}
+
 	public static void drawSprite(ByteBuffer buffer, int drawColors, ByteBuffer sprite, int startX, int startY, int width, int height, int sourceX, int sourceY, int stride, boolean bpp2, boolean flipX, boolean flipY, boolean rotate) {
 		// Clip rectangle to screen
 		int clipXMin, clipYMin, clipXMax, clipYMax;
@@ -257,11 +261,11 @@ public final class FramebufferRendering {
 				int colorIdx;
 				int bitIndex = sy * stride + sx;
 				if (bpp2) {
-					int colorByte = sprite.get(bitIndex >>> 2);
+					int colorByte = FramebufferRendering.getInbound(sprite, bitIndex >>> 2);
 					int shift = 6 - ((bitIndex & 0x03) << 1);
 					colorIdx = ((colorByte >>> shift)) & 0b11;
 				} else {
-					int colorByte = sprite.get(bitIndex >>> 3);
+					int colorByte = FramebufferRendering.getInbound(sprite, bitIndex >>> 3);
 					int shift = 7 - (bitIndex & 0x7);
 					colorIdx = (colorByte >>> shift) & 0b1;
 				}

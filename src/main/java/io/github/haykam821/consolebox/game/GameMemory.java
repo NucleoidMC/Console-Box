@@ -9,11 +9,14 @@ import io.github.kawamuray.wasmtime.Extern;
 import io.github.kawamuray.wasmtime.Memory;
 import io.github.kawamuray.wasmtime.MemoryType;
 import io.github.kawamuray.wasmtime.Store;
+import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
+import net.minecraft.server.network.ServerPlayerEntity;
 
 public final class GameMemory {
 	private static final int PALETTE_ADDRESS = 0x0004;
 	private static final int DRAW_COLORS_ADDRESS = 0x0014;
 
+	private static final int GAMEPADS_ADDRESS = 0x0016;
 	private static final int SYSTEM_FLAGS_ADDRESS = 0x001F;
 
 	private static final int FRAMEBUFFER_ADDRESS = 0x00A0;
@@ -90,6 +93,24 @@ public final class GameMemory {
 
 	public ByteBuffer readSprite(int start, int width, int height) {
 		return this.buffer.slice(start, width * height);
+	}
+
+	public void updateGamepad(ServerPlayerEntity player) {
+		byte gamepad = 0;
+
+		if (player.getInventory().selectedSlot == 7) gamepad |= 1; // Z
+		if (player.getInventory().selectedSlot == 8) gamepad |= 2; // X
+
+		if (player.getInventory().selectedSlot != 6) {
+			player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(6));
+		}
+
+		if (player.sidewaysSpeed > 0) gamepad |= 16; // Left
+		if (player.sidewaysSpeed < 0) gamepad |= 32; // Right
+		if (player.forwardSpeed > 0) gamepad |= 64; // Up
+		if (player.forwardSpeed < 0) gamepad |= 128; // Down
+
+		this.buffer.put(GAMEPADS_ADDRESS, gamepad);
 	}
 
 	private void initializeMemory() {

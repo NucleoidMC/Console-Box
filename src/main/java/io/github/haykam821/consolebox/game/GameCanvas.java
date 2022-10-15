@@ -22,6 +22,7 @@ import io.github.kawamuray.wasmtime.WasmFunctions;
 import io.github.kawamuray.wasmtime.WasmFunctions.Consumer0;
 import io.github.kawamuray.wasmtime.WasmValType;
 import net.minecraft.item.FilledMapItem;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -249,7 +250,9 @@ public class GameCanvas {
 		this.canvas.sendUpdates();
 	}
 
-	public void tick() {
+	public void tick(ServerPlayerEntity player) {
+		this.memory.updateGamepad(player);
+
 		for (int i = 0; i < this.config.updatesPerSecond(); i++) {
 			this.update();
 		}
