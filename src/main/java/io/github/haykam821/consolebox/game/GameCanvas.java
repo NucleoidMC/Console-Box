@@ -3,13 +3,14 @@ package io.github.haykam821.consolebox.game;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import eu.pb4.mapcanvas.api.core.CanvasColor;
+import eu.pb4.mapcanvas.api.font.DefaultFonts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import eu.pb4.mapcanvas.api.core.CombinedPlayerCanvas;
 import eu.pb4.mapcanvas.api.core.DrawableCanvas;
 import eu.pb4.mapcanvas.api.core.PlayerCanvas;
-import eu.pb4.mapcanvas.api.utils.CanvasUtils;
 import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
 import io.github.kawamuray.wasmtime.Engine;
@@ -22,7 +23,6 @@ import io.github.kawamuray.wasmtime.WasmFunctions;
 import io.github.kawamuray.wasmtime.WasmFunctions.Consumer0;
 import io.github.kawamuray.wasmtime.WasmValType;
 import net.minecraft.item.FilledMapItem;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -30,7 +30,7 @@ import net.minecraft.util.math.Vec3d;
 public class GameCanvas {
 	private static final Logger LOGGER = LoggerFactory.getLogger("GameCanvas");
 
-	private static final int RENDER_SCALE = 5;
+	private static final int RENDER_SCALE = 1;
 	private static final int MAP_SIZE = FilledMapItem.field_30907;
 	private static final int SECTION_SIZE = MathHelper.ceil(HardwareConstants.SCREEN_WIDTH * RENDER_SCALE / (double) MAP_SIZE);
 
@@ -104,13 +104,12 @@ public class GameCanvas {
 	private void blitSub(int spriteAddress, int x, int y, int width, int height, int sourceX, int sourceY, int stride, int flags) {
 		ByteBuffer buffer = this.memory.getFramebuffer();
 		int drawColors = this.memory.readDrawColors();
-
-		ByteBuffer sprite = this.memory.readSprite(spriteAddress, width, height);
-
 		boolean bpp2 = (flags & 1) > 0;
 		boolean flipX = (flags & 2) > 0;
 		boolean flipY = (flags & 4) > 0;
 		boolean rotate = (flags & 8) > 0;
+
+		ByteBuffer sprite = this.memory.readSprite(spriteAddress, width, height, bpp2 ? 2 : 1);
 
 		FramebufferRendering.drawSprite(buffer, drawColors, sprite, x, y, width, height, sourceX, sourceY, stride, bpp2, flipX, flipY, rotate);
 	}
@@ -240,25 +239,29 @@ public class GameCanvas {
 		for (int y = 0; y < HardwareConstants.SCREEN_HEIGHT; y++) {
 			for (int x = 0; x < HardwareConstants.SCREEN_WIDTH; x++) {
 				int colorAddress = index >>> 3;
-				byte color = (byte) (buffer.get(colorAddress) >>> (6 - index % 8) & 0b11);
+				byte color = (byte) (buffer.get(colorAddress) >>> (index % 8) & 0b11);
 
-				CanvasUtils.fill(this.canvas, x * RENDER_SCALE, y * RENDER_SCALE, (x + 1) * RENDER_SCALE, (y + 1) * RENDER_SCALE, this.palette.getColor(color));
+				this.canvas.set(x, y, this.palette.getColor(color));
+				//CanvasUtils.fill(this.canvas, x * RENDER_SCALE, y * RENDER_SCALE, (x + 1) * RENDER_SCALE, (y + 1) * RENDER_SCALE, this.palette.getColor(color));
 				index += 2;
 			}
 		}
-
-		this.canvas.sendUpdates();
 	}
 
-	public void tick(ServerPlayerEntity player) {
-		this.memory.updateGamepad(player);
+	public void updateGamepad(float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
+		//synchronized (this) {
+			this.memory.updateGamepad(leftRight, upDown, isSneaking, isJumping);
+		//}
+	}
 
-		for (int i = 0; i < this.config.updatesPerSecond(); i++) {
+	public void tick(long lastTime) {
+		//synchronized (this) {
 			this.update();
-		}
-
-		this.palette.update();
-		this.render();
+			this.palette.update();
+			this.render();
+			//DefaultFonts.VANILLA.drawText(this.canvas, "TIME: +" + lastTime, 0, 0, 8, CanvasColor.RED_HIGH);
+			this.canvas.sendUpdates();
+		//}
 	}
 
 	public void start() {
@@ -276,7 +279,7 @@ public class GameCanvas {
 		BlockPos displayPos = this.getDisplayPos();
 		double x = HardwareConstants.SCREEN_WIDTH * RENDER_SCALE / 2d / MAP_SIZE;
 
-		return new Vec3d(x, displayPos.getY() / 2d, displayPos.getY() * 1.2);
+		return new Vec3d(x, displayPos.getY() / 2d + 1.375, displayPos.getY() * 0.4);
 	}
 
 	public int getSpawnAngle() {

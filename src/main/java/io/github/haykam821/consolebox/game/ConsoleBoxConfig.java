@@ -14,16 +14,15 @@ import xyz.nucleoid.plasmid.game.GameOpenException;
 public record ConsoleBoxConfig(
 	Identifier game,
 	Vec3d spectatorSpawnOffset,
-	int updatesPerSecond
+	boolean swapXZ
 ) {
 	private static final Vec3d DEFAULT_SPECTATOR_SPAWN_OFFSET = new Vec3d(0, 2, 0);
-	private static final int DEFAULT_UPDATES_PER_SECOND = 60 / SharedConstants.TICKS_PER_SECOND;
 
 	public static final Codec<ConsoleBoxConfig> CODEC = RecordCodecBuilder.create(instance -> {
 		return instance.group(
 			Identifier.CODEC.fieldOf("game").forGetter(ConsoleBoxConfig::game),
 			Vec3f.CODEC.xmap(Vec3d::new, Vec3f::new).optionalFieldOf("spectator_spawn_offset", DEFAULT_SPECTATOR_SPAWN_OFFSET).forGetter(ConsoleBoxConfig::spectatorSpawnOffset),
-			Codec.intRange(0, Integer.MAX_VALUE).optionalFieldOf("updates_per_second", DEFAULT_UPDATES_PER_SECOND).forGetter(ConsoleBoxConfig::updatesPerSecond)
+			Codec.BOOL.optionalFieldOf("swap_x_z", false).forGetter(ConsoleBoxConfig::swapXZ)
 		).apply(instance, ConsoleBoxConfig::new);
 	});
 

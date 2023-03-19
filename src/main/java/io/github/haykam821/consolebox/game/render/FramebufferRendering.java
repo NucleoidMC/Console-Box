@@ -20,7 +20,7 @@ public final class FramebufferRendering {
 		int index = HardwareConstants.SCREEN_WIDTH * y + x;
 		int address = index >>> 2;
 
-		int shift = 6 - (index % 4) * 2;
+		int shift = (index % 4) * 2;
 		int mask = 0x3 << shift;
 
 		buffer.put(address, (byte) ((color << shift) | (buffer.get(address) & ~mask)));

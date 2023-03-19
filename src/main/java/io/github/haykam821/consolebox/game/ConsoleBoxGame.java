@@ -8,7 +8,11 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.passive.MuleEntity;
+import net.minecraft.network.Packet;
+import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
+import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
+import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
@@ -28,10 +32,15 @@ import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
 import xyz.nucleoid.plasmid.game.player.PlayerOffer;
 import xyz.nucleoid.plasmid.game.player.PlayerOfferResult;
 import xyz.nucleoid.plasmid.game.rule.GameRuleType;
+import xyz.nucleoid.stimuli.event.player.PlayerC2SPacketEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
-public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.Destroy, GameActivityEvents.Tick, GamePlayerEvents.Remove, GamePlayerEvents.Offer, PlayerDamageEvent, PlayerDeathEvent {
+import java.util.Set;
+
+public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.Destroy, GameActivityEvents.Tick, GameActivityEvents.Enable, GamePlayerEvents.Remove, GamePlayerEvents.Offer, PlayerDamageEvent, PlayerDeathEvent, PlayerC2SPacketEvent {
+	private final Thread thread;
+
 	private final GameSpace gameSpace;
 	private final ServerWorld world;
 	private final ConsoleBoxConfig config;
@@ -40,6 +49,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 	private final VirtualDisplay display;
 
 	private ServerPlayerEntity mainPlayer;
+	private volatile boolean runs = true;
 
 	public ConsoleBoxGame(GameSpace gameSpace, ServerWorld world, ConsoleBoxConfig config, GameCanvas canvas, VirtualDisplay display) {
 		this.gameSpace = gameSpace;
@@ -48,6 +58,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
 		this.canvas = canvas;
 		this.display = display;
+		this.thread = new Thread(this::runThread);
 	}
 
 	public static void setRules(GameActivity activity) {
@@ -92,12 +103,14 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
 			// Listeners
 			activity.listen(GamePlayerEvents.ADD, phase);
+			activity.listen(GameActivityEvents.ENABLE, phase);
 			activity.listen(GameActivityEvents.DESTROY, phase);
 			activity.listen(GameActivityEvents.TICK, phase);
 			activity.listen(GamePlayerEvents.OFFER, phase);
 			activity.listen(PlayerDamageEvent.EVENT, phase);
 			activity.listen(PlayerDeathEvent.EVENT, phase);
 			activity.listen(GamePlayerEvents.REMOVE, phase);
+			activity.listen(PlayerC2SPacketEvent.EVENT, phase);
 		});
 	}
 
@@ -106,21 +119,59 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 	public void onAddPlayer(ServerPlayerEntity player) {
 		this.display.addPlayer(player);
 		this.display.getCanvas().addPlayer(player);
+		player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getId()));
 	}
 
 	@Override
 	public void onDestroy(GameCloseReason reason) {
 		this.display.destroy();
 		this.display.getCanvas().destroy();
+		this.runs = false;
+	}
+
+	@Override
+	public ActionResult onPacket(ServerPlayerEntity player, Packet<?> packet) {
+		if (packet instanceof PlayerInputC2SPacket playerInputC2SPacket) {
+			var isJumping = this.config.swapXZ() ? playerInputC2SPacket.isSneaking() : playerInputC2SPacket.isJumping();
+			var isSneaking = !this.config.swapXZ() ? playerInputC2SPacket.isSneaking() : playerInputC2SPacket.isJumping();
+
+			this.canvas.updateGamepad(playerInputC2SPacket.getSideways(), playerInputC2SPacket.getForward(),
+					isSneaking, isJumping);
+		}
+
+		return ActionResult.PASS;
 	}
 
 	@Override
 	public void onTick() {
 		if (this.mainPlayer == null) return;
-
-		this.canvas.tick(this.mainPlayer);
+		this.mainPlayer.networkHandler.sendPacket(
+				new PlayerPositionLookS2CPacket(this.mainPlayer.getX(), this.mainPlayer.getY(), this.mainPlayer.getZ(), 180f, 0f,
+				Set.of(), 0, false));
 	}
 
+
+	@Override
+	public void onEnable() {
+		this.thread.start();
+	}
+
+	private void runThread() {
+		try {
+			long time;
+			long lastTime = 0;
+			while (this.runs) {
+				time = System.currentTimeMillis();
+				this.canvas.tick(lastTime);
+				lastTime = System.currentTimeMillis() - time;
+
+				Thread.sleep(Math.max(1000 / 60 - System.currentTimeMillis() + time, 1));
+			}
+		} catch (Throwable e) {
+			e.printStackTrace();
+		}
+	}
+	// /game open {type:"consolebox:console_box", game:"consolebox:cart"}
 	@Override
 	public PlayerOfferResult onOfferPlayer(PlayerOffer offer) {
 		if (this.mainPlayer == null) {
@@ -165,7 +216,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
 	// Utilities
 	private Entity spawnMount(Vec3d playerPos, ServerPlayerEntity player) {
-		MobEntity mount = EntityType.MULE.create(this.world);
+		MuleEntity mount = EntityType.MULE.create(this.world);
 
 		double y = playerPos.getY() - mount.getMountedHeightOffset() - player.getHeightOffset() + player.getY() - player.getEyeY();
 		mount.setPos(playerPos.getX(), y, playerPos.getZ());

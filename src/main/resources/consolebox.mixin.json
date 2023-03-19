@@ -1,11 +1,11 @@
 {
-	"required": true,
-	"package": "io.github.haykam821.consolebox.mixin",
-	"compatibilityLevel": "JAVA_8",
-	"mixins": [
-		"MemoryTypeAccessor"
-	],
-	"injectors": {
-		"defaultRequire": 1
+  "required": true,
+  "package": "io.github.haykam821.consolebox.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MemoryTypeAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
 	}
 }

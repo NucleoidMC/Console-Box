@@ -9,6 +9,7 @@ import io.github.kawamuray.wasmtime.Extern;
 import io.github.kawamuray.wasmtime.Memory;
 import io.github.kawamuray.wasmtime.MemoryType;
 import io.github.kawamuray.wasmtime.Store;
+import net.minecraft.entity.passive.MuleEntity;
 import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 
@@ -91,24 +92,20 @@ public final class GameMemory {
 		return charset.decode(this.buffer.slice(start, length)).toString();
 	}
 
-	public ByteBuffer readSprite(int start, int width, int height) {
-		return this.buffer.slice(start, width * height);
+	public ByteBuffer readSprite(int start, int width, int height, int bit) {
+		return this.buffer.slice(start, width * height * bit);
 	}
 
-	public void updateGamepad(ServerPlayerEntity player) {
+	public void updateGamepad(float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
 		byte gamepad = 0;
 
-		if (player.getInventory().selectedSlot == 7) gamepad |= 1; // Z
-		if (player.getInventory().selectedSlot == 8) gamepad |= 2; // X
+		if (isJumping) gamepad |= 1; // Z
+		if (isSneaking) gamepad |= 2; // X
 
-		if (player.getInventory().selectedSlot != 6) {
-			player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(6));
-		}
-
-		if (player.sidewaysSpeed > 0) gamepad |= 16; // Left
-		if (player.sidewaysSpeed < 0) gamepad |= 32; // Right
-		if (player.forwardSpeed > 0) gamepad |= 64; // Up
-		if (player.forwardSpeed < 0) gamepad |= 128; // Down
+		if (leftRight > 0) gamepad |= 16; // Left
+		if (leftRight < 0) gamepad |= 32; // Right
+		if (upDown > 0) gamepad |= 64; // Up
+		if (upDown < 0) gamepad |= 128; // Down
 
 		this.buffer.put(GAMEPADS_ADDRESS, gamepad);
 	}
