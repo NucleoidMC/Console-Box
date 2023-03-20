@@ -2,9 +2,14 @@ package io.github.haykam821.consolebox.game;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
+import eu.pb4.mapcanvas.api.utils.CanvasUtils;
+import io.github.kawamuray.wasmtime.*;
+import io.github.kawamuray.wasmtime.Module;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,15 +18,7 @@ import eu.pb4.mapcanvas.api.core.DrawableCanvas;
 import eu.pb4.mapcanvas.api.core.PlayerCanvas;
 import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
-import io.github.kawamuray.wasmtime.Engine;
-import io.github.kawamuray.wasmtime.Extern;
-import io.github.kawamuray.wasmtime.Func;
-import io.github.kawamuray.wasmtime.Linker;
-import io.github.kawamuray.wasmtime.Module;
-import io.github.kawamuray.wasmtime.Store;
-import io.github.kawamuray.wasmtime.WasmFunctions;
 import io.github.kawamuray.wasmtime.WasmFunctions.Consumer0;
-import io.github.kawamuray.wasmtime.WasmValType;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -84,8 +81,8 @@ public class GameCanvas {
 
 		GameCanvas.defineImport(linker, "tone", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::tone));
 
-		GameCanvas.defineImport(linker, "diskr", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::diskr));
-		GameCanvas.defineImport(linker, "diskw", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::diskw));
+		GameCanvas.defineImport(linker, "diskr", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskr));
+		GameCanvas.defineImport(linker, "diskw", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskw));
 
 		GameCanvas.defineImport(linker, "trace", WasmFunctions.wrap(this.store, WasmValType.I32, this::trace));
 		GameCanvas.defineImport(linker, "traceUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf8));
@@ -109,9 +106,7 @@ public class GameCanvas {
 		boolean flipY = (flags & 4) > 0;
 		boolean rotate = (flags & 8) > 0;
 
-		ByteBuffer sprite = this.memory.readSprite(spriteAddress, width, height, bpp2 ? 2 : 1);
-
-		FramebufferRendering.drawSprite(buffer, drawColors, sprite, x, y, width, height, sourceX, sourceY, stride, bpp2, flipX, flipY, rotate);
+		FramebufferRendering.drawSprite(buffer, drawColors, this.memory.getBuffer(), spriteAddress, x, y, width, height, sourceX, sourceY, stride, bpp2, flipX, flipY, rotate);
 	}
 
 	private void line(int x1, int y1, int x2, int y2) {
@@ -134,7 +129,7 @@ public class GameCanvas {
 	}
 
 	private void vline(int x, int y, int length) {
-		if (y + length <= 0 || x < 0 || x >= HardwareConstants.SCREEN_WIDTH) {
+		if (y + length <= 0 || x < 0 || x >= HardwareConstants.SCREEN_HEIGHT) {
 			return;
 		}
 
@@ -148,7 +143,6 @@ public class GameCanvas {
 
 			int startY = Math.max(0, y);
 			int endY = Math.min(HardwareConstants.SCREEN_HEIGHT, y + length);
-			FramebufferRendering.drawHLineUnclipped(buffer, strokeColor, x, y, x + length);
 
 			for (int dy = startY; dy < endY; dy++) {
 				FramebufferRendering.drawPoint(buffer, strokeColor, x, dy);
@@ -196,12 +190,15 @@ public class GameCanvas {
 		// Intentionally empty as sound is unsupported
 	}
 
-	private void diskr(int address, int size) {
+	private int diskr(int address, int size) {
+		//this.//memory.copyDisk(address, size);
 		// Intentionally empty as persistent storage is unsupported
+		return 0;
 	}
 
-	private void diskw(int address, int size) {
+	private int diskw(int address, int size) {
 		// Intentionally empty as persistent storage is unsupported
+		return 0;
 	}
 
 	private void trace(int string) {
@@ -242,26 +239,62 @@ public class GameCanvas {
 				byte color = (byte) (buffer.get(colorAddress) >>> (index % 8) & 0b11);
 
 				this.canvas.set(x, y, this.palette.getColor(color));
-				//CanvasUtils.fill(this.canvas, x * RENDER_SCALE, y * RENDER_SCALE, (x + 1) * RENDER_SCALE, (y + 1) * RENDER_SCALE, this.palette.getColor(color));
 				index += 2;
 			}
 		}
 	}
 
 	public void updateGamepad(float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
-		//synchronized (this) {
+		synchronized (this) {
 			this.memory.updateGamepad(leftRight, upDown, isSneaking, isJumping);
-		//}
+		}
 	}
 
 	public void tick(long lastTime) {
-		//synchronized (this) {
-			this.update();
-			this.palette.update();
-			this.render();
+		synchronized (this) {
+			try {
+				this.update();
+				this.palette.update();
+				this.render();
+			} catch (Throwable e) {
+				var width = DefaultFonts.VANILLA.getTextWidth("ERROR!", 16);
+				CanvasUtils.fill(this.canvas, 0, 0, HardwareConstants.SCREEN_HEIGHT, HardwareConstants.SCREEN_WIDTH, CanvasColor.BLUE_HIGH);
+				DefaultFonts.VANILLA.drawText(this.canvas, "ERROR!",  (HardwareConstants.SCREEN_WIDTH - width) / 2 + 1, 17, 16, CanvasColor.BLACK_LOW);
+				DefaultFonts.VANILLA.drawText(this.canvas, "ERROR!", (HardwareConstants.SCREEN_WIDTH - width) / 2, 16, 16, CanvasColor.RED_HIGH);
+
+				String message1;
+				String message2;
+
+				if (e instanceof TrapException trapException) {
+					message1 = "Execution error! (TRAP) [ " + trapException.trap().exitCode() + " ]";
+					message2 = trapException.trap().trapCode().name();
+				} else {
+					message1 = "Runtime error!";
+					message2 = e.getMessage();
+				}
+
+				List<String> message2Split = new ArrayList<>();
+
+				var builder = new StringBuilder();
+
+				for (var x : message2.toCharArray()) {
+					if (DefaultFonts.VANILLA.getTextWidth(builder.toString() + x, 8) > HardwareConstants.SCREEN_WIDTH - 10) {
+						message2Split.add(builder.toString());
+						builder = new StringBuilder();
+					}
+					builder.append(x);
+				}
+				message2Split.add(builder.toString());
+
+				DefaultFonts.VANILLA.drawText(this.canvas, message1, 5, 64, 8, CanvasColor.WHITE_HIGH);
+
+				for (int i = 0; i < message2Split.size(); i++) {
+					DefaultFonts.VANILLA.drawText(this.canvas, message2Split.get(i), 5, 64 + 10 + 10*i, 8, CanvasColor.WHITE_HIGH);
+				}
+			}
 			//DefaultFonts.VANILLA.drawText(this.canvas, "TIME: +" + lastTime, 0, 0, 8, CanvasColor.RED_HIGH);
 			this.canvas.sendUpdates();
-		//}
+		}
 	}
 
 	public void start() {

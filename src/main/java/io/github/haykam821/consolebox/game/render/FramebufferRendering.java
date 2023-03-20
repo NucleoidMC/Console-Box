@@ -230,7 +230,7 @@ public final class FramebufferRendering {
 		return index < 0 || index >= buffer.limit() ? 0 : buffer.get(index);
 	}
 
-	public static void drawSprite(ByteBuffer buffer, int drawColors, ByteBuffer sprite, int startX, int startY, int width, int height, int sourceX, int sourceY, int stride, boolean bpp2, boolean flipX, boolean flipY, boolean rotate) {
+	public static void drawSprite(ByteBuffer buffer, int drawColors, ByteBuffer spriteBuffer, int spriteAddress, int startX, int startY, int width, int height, int sourceX, int sourceY, int stride, boolean bpp2, boolean flipX, boolean flipY, boolean rotate) {
 		// Clip rectangle to screen
 		int clipXMin, clipYMin, clipXMax, clipYMax;
 		if (rotate) {
@@ -261,11 +261,11 @@ public final class FramebufferRendering {
 				int colorIdx;
 				int bitIndex = sy * stride + sx;
 				if (bpp2) {
-					int colorByte = FramebufferRendering.getInbound(sprite, bitIndex >>> 2);
+					int colorByte = FramebufferRendering.getInbound(spriteBuffer, spriteAddress + (bitIndex >>> 2));
 					int shift = 6 - ((bitIndex & 0x03) << 1);
 					colorIdx = ((colorByte >>> shift)) & 0b11;
 				} else {
-					int colorByte = FramebufferRendering.getInbound(sprite, bitIndex >>> 3);
+					int colorByte = FramebufferRendering.getInbound(spriteBuffer, spriteAddress + (bitIndex >>> 3));
 					int shift = 7 - (bitIndex & 0x7);
 					colorIdx = (colorByte >>> shift) & 0b1;
 				}
@@ -292,7 +292,7 @@ public final class FramebufferRendering {
 				currentX = x;
 			} else {
 				int sourceY = (character - 32) << 3;
-				FramebufferRendering.drawSprite(buffer, drawColors, GameFont.FONT, currentX, y, GameFont.CHARACTER_WIDTH, GameFont.CHARACTER_HEIGHT, 0, sourceY, GameFont.CHARACTER_WIDTH, false, false, false, false);
+				FramebufferRendering.drawSprite(buffer, drawColors, GameFont.FONT, 0, currentX, y, GameFont.CHARACTER_WIDTH, GameFont.CHARACTER_HEIGHT, 0, sourceY, GameFont.CHARACTER_WIDTH, false, false, false, false);
 
 				currentX += GameFont.CHARACTER_WIDTH;
 			}

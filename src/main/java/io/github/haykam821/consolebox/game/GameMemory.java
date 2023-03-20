@@ -18,10 +18,14 @@ public final class GameMemory {
 	private static final int DRAW_COLORS_ADDRESS = 0x0014;
 
 	private static final int GAMEPADS_ADDRESS = 0x0016;
+	private static final int MOUSE_X_ADDRESS = 0x001a;
+	private static final int MOUSE_Y_ADDRESS = 0x001c;
+	private static final int MOUSE_BUTTONS_ADDRESS = 0x001e;
 	private static final int SYSTEM_FLAGS_ADDRESS = 0x001F;
+	private static final int NETPLAY_ADDRESS = 0x001F;
 
-	private static final int FRAMEBUFFER_ADDRESS = 0x00A0;
-	private static final int FRAMEBUFFER_SIZE = HardwareConstants.SCREEN_AREA >>> 2;
+	private static final int FRAMEBUFFER_ADDRESS = 0x00a0;
+	private static final int FRAMEBUFFER_SIZE = 6400;
 
 	private final Memory memory;
 
@@ -35,6 +39,10 @@ public final class GameMemory {
 		this.framebuffer = this.buffer.slice(FRAMEBUFFER_ADDRESS, FRAMEBUFFER_SIZE);
 
 		this.initializeMemory();
+	}
+
+	public ByteBuffer getBuffer() {
+		return this.buffer;
 	}
 
 	public Extern createExtern() {
