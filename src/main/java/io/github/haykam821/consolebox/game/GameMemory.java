@@ -2,6 +2,7 @@ package io.github.haykam821.consolebox.game;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
 import io.github.haykam821.consolebox.mixin.MemoryTypeAccessor;
@@ -104,7 +105,7 @@ public final class GameMemory {
 		return this.buffer.slice(start, width * height * bit);
 	}
 
-	public void updateGamepad(float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
+	public void updateGamepad(int id, float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
 		byte gamepad = 0;
 
 		if (isJumping) gamepad |= 1; // Z
@@ -115,7 +116,7 @@ public final class GameMemory {
 		if (upDown > 0) gamepad |= 64; // Up
 		if (upDown < 0) gamepad |= 128; // Down
 
-		this.buffer.put(GAMEPADS_ADDRESS, gamepad);
+		this.buffer.put(GAMEPADS_ADDRESS + id, gamepad);
 	}
 
 	private void initializeMemory() {

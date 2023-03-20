@@ -244,9 +244,9 @@ public class GameCanvas {
 		}
 	}
 
-	public void updateGamepad(float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
+	public void updateGamepad(int id, float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
 		synchronized (this) {
-			this.memory.updateGamepad(leftRight, upDown, isSneaking, isJumping);
+			this.memory.updateGamepad(id, leftRight, upDown, isSneaking, isJumping);
 		}
 	}
 
@@ -257,43 +257,55 @@ public class GameCanvas {
 				this.palette.update();
 				this.render();
 			} catch (Throwable e) {
-				var width = DefaultFonts.VANILLA.getTextWidth("ERROR!", 16);
-				CanvasUtils.fill(this.canvas, 0, 0, HardwareConstants.SCREEN_HEIGHT, HardwareConstants.SCREEN_WIDTH, CanvasColor.BLUE_HIGH);
-				DefaultFonts.VANILLA.drawText(this.canvas, "ERROR!",  (HardwareConstants.SCREEN_WIDTH - width) / 2 + 1, 17, 16, CanvasColor.BLACK_LOW);
-				DefaultFonts.VANILLA.drawText(this.canvas, "ERROR!", (HardwareConstants.SCREEN_WIDTH - width) / 2, 16, 16, CanvasColor.RED_HIGH);
-
-				String message1;
-				String message2;
-
-				if (e instanceof TrapException trapException) {
-					message1 = "Execution error! (TRAP) [ " + trapException.trap().exitCode() + " ]";
-					message2 = trapException.trap().trapCode().name();
-				} else {
-					message1 = "Runtime error!";
-					message2 = e.getMessage();
-				}
-
-				List<String> message2Split = new ArrayList<>();
-
-				var builder = new StringBuilder();
-
-				for (var x : message2.toCharArray()) {
-					if (DefaultFonts.VANILLA.getTextWidth(builder.toString() + x, 8) > HardwareConstants.SCREEN_WIDTH - 10) {
-						message2Split.add(builder.toString());
-						builder = new StringBuilder();
-					}
-					builder.append(x);
-				}
-				message2Split.add(builder.toString());
-
-				DefaultFonts.VANILLA.drawText(this.canvas, message1, 5, 64, 8, CanvasColor.WHITE_HIGH);
-
-				for (int i = 0; i < message2Split.size(); i++) {
-					DefaultFonts.VANILLA.drawText(this.canvas, message2Split.get(i), 5, 64 + 10 + 10*i, 8, CanvasColor.WHITE_HIGH);
-				}
+				this.drawError(e);
 			}
 			//DefaultFonts.VANILLA.drawText(this.canvas, "TIME: +" + lastTime, 0, 0, 8, CanvasColor.RED_HIGH);
 			this.canvas.sendUpdates();
+		}
+	}
+
+	private void drawError(Throwable e) {
+		var width = DefaultFonts.VANILLA.getTextWidth("ERROR!", 16);
+
+		CanvasUtils.fill(this.canvas, (HardwareConstants.SCREEN_WIDTH - width) / 2 - 5, 11,
+				(HardwareConstants.SCREEN_WIDTH - width) / 2 + width + 5, 16 * 2 + 5, CanvasColor.BLUE_HIGH);
+		//CanvasUtils.fill(this.canvas, 0, 0, HardwareConstants.SCREEN_HEIGHT, HardwareConstants.SCREEN_WIDTH, CanvasColor.BLUE_HIGH);
+		DefaultFonts.VANILLA.drawText(this.canvas, "ERROR!",  (HardwareConstants.SCREEN_WIDTH - width) / 2 + 1, 17, 16, CanvasColor.BLACK_LOW);
+		DefaultFonts.VANILLA.drawText(this.canvas, "ERROR!", (HardwareConstants.SCREEN_WIDTH - width) / 2, 16, 16, CanvasColor.RED_HIGH);
+
+		String message1;
+		String message2;
+
+		if (e instanceof TrapException trapException) {
+			message1 = "Execution error! (TRAP) [ " + trapException.trap().exitCode() + " ]";
+			message2 = trapException.trap().trapCode().name();
+		} else {
+			message1 = "Runtime error!";
+			message2 = e.getMessage();
+		}
+
+		List<String> message2Split = new ArrayList<>();
+
+		var builder = new StringBuilder();
+
+		for (var x : message2.toCharArray()) {
+			if (DefaultFonts.VANILLA.getTextWidth(builder.toString() + x, 8) > HardwareConstants.SCREEN_WIDTH - 10) {
+				message2Split.add(builder.toString());
+				builder = new StringBuilder();
+			}
+			builder.append(x);
+		}
+		message2Split.add(builder.toString());
+
+		CanvasUtils.fill(this.canvas, 0, 63,
+				HardwareConstants.SCREEN_WIDTH, 65 + 8, CanvasColor.BLUE_HIGH);
+
+		DefaultFonts.VANILLA.drawText(this.canvas, message1, 5, 64, 8, CanvasColor.WHITE_HIGH);
+
+		CanvasUtils.fill(this.canvas, 0, 63 + 10,
+				HardwareConstants.SCREEN_WIDTH, 65 + 10 + message2Split.size() * 10, CanvasColor.BLUE_HIGH);
+		for (int i = 0; i < message2Split.size(); i++) {
+			DefaultFonts.VANILLA.drawText(this.canvas, message2Split.get(i), 5, 64 + 10 + 10*i, 8, CanvasColor.WHITE_HIGH);
 		}
 	}
 
