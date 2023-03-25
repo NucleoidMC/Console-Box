@@ -2,6 +2,7 @@ package io.github.haykam821.consolebox.game;
 
 import eu.pb4.mapcanvas.api.utils.VirtualDisplay;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
@@ -13,12 +14,12 @@ import net.minecraft.network.Packet;
 import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
 import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.registry.Registry;
 import net.minecraft.world.GameMode;
 import xyz.nucleoid.fantasy.RuntimeWorldConfig;
 import xyz.nucleoid.fantasy.util.VoidChunkGenerator;
@@ -85,7 +86,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         ConsoleBoxConfig config = context.config();
 
         RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
-                .setGenerator(new VoidChunkGenerator(context.server().getRegistryManager().get(Registry.BIOME_KEY)));
+                .setGenerator(new VoidChunkGenerator(context.server().getRegistryManager().get(RegistryKeys.BIOME)));
 
         GameCanvas canvas = new GameCanvas(config);
         canvas.start();
@@ -246,8 +247,8 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     // Utilities
     private Entity spawnMount(Vec3d playerPos, ServerPlayerEntity player) {
         MuleEntity mount = EntityType.MULE.create(this.world);
-
-        double y = playerPos.getY() - mount.getMountedHeightOffset() - player.getHeightOffset() + player.getY() - player.getEyeY();
+        mount.calculateDimensions();
+        double y = playerPos.getY() - 1.222f;
         mount.setPos(playerPos.getX(), y, playerPos.getZ());
         mount.setYaw(this.canvas.getSpawnAngle());
 
