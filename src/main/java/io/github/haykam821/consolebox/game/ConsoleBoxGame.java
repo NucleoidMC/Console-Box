@@ -1,8 +1,8 @@
 package io.github.haykam821.consolebox.game;
 
 import eu.pb4.mapcanvas.api.utils.VirtualDisplay;
+import io.github.haykam821.consolebox.game.audio.BaseAudioController;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
@@ -88,7 +88,9 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
                 .setGenerator(new VoidChunkGenerator(context.server().getRegistryManager().get(RegistryKeys.BIOME)));
 
-        GameCanvas canvas = new GameCanvas(config);
+
+        var audioController = new BaseAudioController();
+        GameCanvas canvas = new GameCanvas(config, audioController);
         canvas.start();
 
         return context.openWithWorld(worldConfig, (activity, world) -> {
@@ -97,6 +99,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
                     .build();
 
             ConsoleBoxGame phase = new ConsoleBoxGame(activity.getGameSpace(), world, config, canvas, display);
+            audioController.setOutput(phase);
             ConsoleBoxGame.setRules(activity);
 
             // Listeners
@@ -248,7 +251,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     private Entity spawnMount(Vec3d playerPos, ServerPlayerEntity player) {
         MuleEntity mount = EntityType.MULE.create(this.world);
         mount.calculateDimensions();
-        double y = playerPos.getY() - 1.222f;
+        double y = playerPos.getY() - 1.25f;
         mount.setPos(playerPos.getX(), y, playerPos.getZ());
         mount.setYaw(this.canvas.getSpawnAngle());
 

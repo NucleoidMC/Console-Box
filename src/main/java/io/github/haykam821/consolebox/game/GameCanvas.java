@@ -1,16 +1,17 @@
 package io.github.haykam821.consolebox.game;
 
-import eu.pb4.mapcanvas.api.core.CanvasColor;
-import eu.pb4.mapcanvas.api.core.CombinedPlayerCanvas;
-import eu.pb4.mapcanvas.api.core.DrawableCanvas;
-import eu.pb4.mapcanvas.api.core.PlayerCanvas;
+import eu.pb4.mapcanvas.api.core.*;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
+import io.github.haykam821.consolebox.ConsoleBox;
+import io.github.haykam821.consolebox.game.audio.AudioChannel;
+import io.github.haykam821.consolebox.game.audio.AudioController;
 import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
 import io.github.kawamuray.wasmtime.Module;
 import io.github.kawamuray.wasmtime.*;
 import io.github.kawamuray.wasmtime.WasmFunctions.Consumer0;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -18,13 +19,32 @@ import net.minecraft.util.math.Vec3d;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 public class GameCanvas {
     private static final Logger LOGGER = LoggerFactory.getLogger("GameCanvas");
+
+    private static final CanvasImage BACKGROUND;
+
+    static {
+        CanvasImage temp;
+        try {
+            temp = CanvasImage.from(ImageIO.read(
+                    Files.newInputStream(FabricLoader.getInstance().getModContainer(ConsoleBox.MOD_ID).get().findPath("background.png").get())));
+        } catch (Throwable e) {
+            temp = null;
+
+            e.printStackTrace();
+        }
+        BACKGROUND = temp;
+    }
 
     private static final int RENDER_SCALE = 1;
     private static final int MAP_SIZE = FilledMapItem.field_30907;
@@ -47,10 +67,11 @@ public class GameCanvas {
 
     private final WasmFunctions.Consumer0 startCallback;
     private final WasmFunctions.Consumer0 updateCallback;
+    private final AudioController audioController;
 
-    public GameCanvas(ConsoleBoxConfig config) {
+    public GameCanvas(ConsoleBoxConfig config, AudioController audioController) {
         this.config = config;
-
+        this.audioController = audioController;
         this.store = Store.withoutData();
         this.memory = new GameMemory(this.store);
 
@@ -64,27 +85,31 @@ public class GameCanvas {
         this.palette = new GamePalette(this.memory);
         this.canvas = DrawableCanvas.create(SECTION_WIDTH, SECTION_HEIGHT);
         CanvasUtils.clear(this.canvas, CanvasColor.GRAY_HIGH);
+        if (BACKGROUND != null) {
+            CanvasUtils.draw(this.canvas, 0, 0, BACKGROUND);
+        }
 
         var text = """
-                        ↑ -> [W]
-                        → -> [D]
-                        ← -> [A]
-                        ↓ -> [S]
+                        ↑ | [W]
+                        → | [D]
+                        ← | [A]
+                        ↓ | [S]
                         """;
 
         if (this.config.swapXZ()) {
             text += """
-                    X -> [Space]
-                    Z -> [Shift]
+                    X | [Space]
+                    Z | [Shift]
                     """;
         } else {
             text += """
-                    X -> [Shift]
-                    Z -> [Space]
+                    X | [Shift]
+                    Z | [Space]
                     """;
         }
 
-        DefaultFonts.VANILLA.drawText(this.canvas, text, DRAW_OFFSET_X - 68, DRAW_OFFSET_Y + 10, 8, CanvasColor.WHITE_HIGH);
+        DefaultFonts.VANILLA.drawText(this.canvas, text, DRAW_OFFSET_X - 78, DRAW_OFFSET_Y + HardwareConstants.SCREEN_HEIGHT - 59, 8, CanvasColor.BLACK_HIGH);
+        DefaultFonts.VANILLA.drawText(this.canvas, text, DRAW_OFFSET_X - 79, DRAW_OFFSET_Y + HardwareConstants.SCREEN_HEIGHT - 60, 8, CanvasColor.WHITE_HIGH);
 
         this.startCallback = this.getCallback(linker, "start");
         this.updateCallback = this.getCallback(linker, "update");
@@ -218,6 +243,20 @@ public class GameCanvas {
     }
 
     private void tone(int frequency, int duration, int volume, int flags) {
+        var channel = switch (flags & 0b11) {
+            case 0 -> AudioChannel.PULSE_1;
+            case 1 -> AudioChannel.PULSE_2;
+            case 2 -> AudioChannel.TRIANGLE;
+            default -> AudioChannel.NOISE;
+        };
+
+        var freq1 = frequency & 0xFFFF;
+        var freq2 = (frequency >> 16) & 0xFFFF;
+
+        var sustainTime = duration & 0xFF;
+
+        this.audioController.playSound(channel, freq1, sustainTime);
+
         // Intentionally empty as sound is unsupported
     }
 
@@ -356,7 +395,7 @@ public class GameCanvas {
     public Vec3d getSpawnPos() {
         BlockPos displayPos = this.getDisplayPos();
 
-        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f, 1);
+        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f, 1.1);
     }
 
     public int getSpawnAngle() {
