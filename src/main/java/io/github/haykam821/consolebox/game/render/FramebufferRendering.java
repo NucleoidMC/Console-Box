@@ -17,19 +17,21 @@ public final class FramebufferRendering {
 	}
 
 	public static void drawPoint(ByteBuffer buffer, byte color, int x, int y) {
-		int index = HardwareConstants.SCREEN_WIDTH * y + x;
-		int address = index >>> 2;
+		if (x >= 0 && x < HardwareConstants.SCREEN_WIDTH && y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
+			int index = HardwareConstants.SCREEN_WIDTH * y + x;
+			int address = index >>> 2;
 
-		int shift = (index % 4) * 2;
-		int mask = 0x3 << shift;
+			int shift = (index % 4) * 2;
+			int mask = 0x3 << shift;
 
-		buffer.put(address, (byte) ((color << shift) | (buffer.get(address) & ~mask)));
+			buffer.put(address, (byte) ((color << shift) | (buffer.get(address) & ~mask)));
+		}
 	}
 
 	public static void drawPointUnclipped(ByteBuffer buffer, byte color, int x, int y) {
-		if (x >= 0 && x < HardwareConstants.SCREEN_WIDTH && y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
+		//if (x >= 0 && x < HardwareConstants.SCREEN_WIDTH && y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
 			FramebufferRendering.drawPoint(buffer, color, x, y);
-		}
+		//}
 	}
 
 	public static void drawHLineFast(ByteBuffer buffer, byte color, int startX, int y, int endX) {
@@ -46,7 +48,9 @@ public final class FramebufferRendering {
 			byte fillColor = (byte) (color * 0b01010101);
 
 			for (int index = from; index < to; index++) {
-				buffer.put(index, fillColor);
+				if (index < buffer.limit()) {
+					buffer.put(index, fillColor);
+				}
 			}
 
 			startX = fillEnd;

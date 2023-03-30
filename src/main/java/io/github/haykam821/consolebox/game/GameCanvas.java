@@ -66,7 +66,7 @@ public class GameCanvas {
     private final CombinedPlayerCanvas canvas;
 
     private final WasmFunctions.Consumer0 startCallback;
-    private final WasmFunctions.Consumer0 updateCallback;
+    private WasmFunctions.Consumer0 updateCallback;
     private final AudioController audioController;
 
     public GameCanvas(ConsoleBoxConfig config, AudioController audioController) {
@@ -76,10 +76,11 @@ public class GameCanvas {
         this.memory = new GameMemory(this.store);
 
         Engine engine = this.store.engine();
-        Module module = new Module(engine, config.getGameData());
 
         Linker linker = new Linker(this.store.engine());
         this.defineImports(linker);
+
+        Module module = new Module(engine, config.getGameData());
         linker.module(this.store, "", module);
 
         this.palette = new GamePalette(this.memory);
@@ -98,13 +99,13 @@ public class GameCanvas {
 
         if (this.config.swapXZ()) {
             text += """
-                    X | [Space]
-                    Z | [Shift]
+                    X | [Shift]
+                    Z | [Space]
                     """;
         } else {
             text += """
-                    X | [Shift]
-                    Z | [Space]
+                    X | [Space]
+                    Z | [Shift]
                     """;
         }
 
@@ -201,7 +202,7 @@ public class GameCanvas {
             int endY = Math.min(HardwareConstants.SCREEN_HEIGHT, y + length);
 
             for (int dy = startY; dy < endY; dy++) {
-                FramebufferRendering.drawPoint(buffer, strokeColor, x, dy);
+                FramebufferRendering.drawPointUnclipped(buffer, strokeColor, x, dy);
             }
         }
     }
@@ -350,7 +351,7 @@ public class GameCanvas {
 
         if (e instanceof TrapException trapException) {
             message1 = "Execution error! (TRAP) [ " + trapException.trap().exitCode() + " ]";
-            message2 = trapException.trap().trapCode().name();
+            message2 = trapException.trap().trapCode() != null ? trapException.trap().trapCode().name() : "<NULL>";
         } else {
             message1 = "Runtime error!";
             message2 = e.getMessage();
@@ -382,10 +383,15 @@ public class GameCanvas {
     }
 
     public void start() {
-        this.startCallback.accept();
-
-        this.palette.update();
-        this.render();
+        try {
+            this.startCallback.accept();
+            this.palette.update();
+            this.render();
+        } catch (Throwable e) {
+            this.drawError(e);
+            e.printStackTrace();
+            this.updateCallback = EMPTY_CALLBACK;
+        }
     }
 
     public BlockPos getDisplayPos() {

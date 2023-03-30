@@ -91,7 +91,6 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
         var audioController = new BaseAudioController();
         GameCanvas canvas = new GameCanvas(config, audioController);
-        canvas.start();
 
         return context.openWithWorld(worldConfig, (activity, world) -> {
             VirtualDisplay display = VirtualDisplay.builder(canvas.getCanvas(), canvas.getDisplayPos(), Direction.SOUTH)
@@ -112,6 +111,8 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
             activity.listen(PlayerDeathEvent.EVENT, phase);
             activity.listen(GamePlayerEvents.REMOVE, phase);
             activity.listen(PlayerC2SPacketEvent.EVENT, phase);
+
+            canvas.start();
         });
     }
 
