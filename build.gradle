@@ -35,7 +35,7 @@ dependencies {
 	modImplementation("xyz.nucleoid:plasmid:${project.plasmid_version}")
 
 	// Wasmtime
-	implementation("io.github.kawamuray.wasmtime:wasmtime-java:${project.wasmtime_version}")
+	include implementation("io.github.kawamuray.wasmtime:wasmtime-java:${project.wasmtime_version}")
 }
 
 processResources {
