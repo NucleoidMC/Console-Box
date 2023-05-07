@@ -10,7 +10,7 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.MuleEntity;
-import net.minecraft.network.Packet;
+import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
 import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
@@ -162,7 +162,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
             if (player != null) {
                 player.networkHandler.sendPacket(
                         new PlayerPositionLookS2CPacket(player.getX(), player.getY(), player.getZ(), 180f, 0f,
-                                Set.of(), 0, false));
+                                Set.of(), 0));
             }
         }
     }
