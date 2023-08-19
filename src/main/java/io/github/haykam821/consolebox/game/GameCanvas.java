@@ -9,6 +9,8 @@ import io.github.haykam821.consolebox.game.audio.AudioController;
 import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
 import io.github.kawamuray.wasmtime.Module;
+import io.github.kawamuray.wasmtime.WasmFunctionError.I32ExitError;
+import io.github.kawamuray.wasmtime.WasmFunctionError.TrapError;
 import io.github.kawamuray.wasmtime.*;
 import io.github.kawamuray.wasmtime.WasmFunctions.Consumer0;
 import net.fabricmc.loader.api.FabricLoader;
@@ -116,38 +118,38 @@ public class GameCanvas {
         this.updateCallback = this.getCallback(linker, "update");
     }
 
-    private static void defineImport(Linker linker, String name, Func func) {
+    private void defineImport(Linker linker, String name, Func func) {
         Extern extern = Extern.fromFunc(func);
-        linker.define("env", name, extern);
+        linker.define(this.store, "env", name, extern);
     }
 
     private void defineImports(Linker linker) {
-        GameCanvas.defineImport(linker, "blit", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::blit));
-        GameCanvas.defineImport(linker, "blitSub", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::blitSub));
+        this.defineImport(linker, "blit", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::blit));
+        this.defineImport(linker, "blitSub", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::blitSub));
 
-        GameCanvas.defineImport(linker, "line", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::line));
-        GameCanvas.defineImport(linker, "hline", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::hline));
-        GameCanvas.defineImport(linker, "vline", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::vline));
+        this.defineImport(linker, "line", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::line));
+        this.defineImport(linker, "hline", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::hline));
+        this.defineImport(linker, "vline", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::vline));
 
-        GameCanvas.defineImport(linker, "oval", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::oval));
-        GameCanvas.defineImport(linker, "rect", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::rect));
+        this.defineImport(linker, "oval", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::oval));
+        this.defineImport(linker, "rect", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::rect));
 
-        GameCanvas.defineImport(linker, "text", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::text));
-        GameCanvas.defineImport(linker, "textUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::textUtf8));
-        GameCanvas.defineImport(linker, "textUtf16", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::textUtf16));
+        this.defineImport(linker, "text", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::text));
+        this.defineImport(linker, "textUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::textUtf8));
+        this.defineImport(linker, "textUtf16", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::textUtf16));
 
-        GameCanvas.defineImport(linker, "tone", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::tone));
+        this.defineImport(linker, "tone", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::tone));
 
-        GameCanvas.defineImport(linker, "diskr", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskr));
-        GameCanvas.defineImport(linker, "diskw", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskw));
+        this.defineImport(linker, "diskr", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskr));
+        this.defineImport(linker, "diskw", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskw));
 
-        GameCanvas.defineImport(linker, "trace", WasmFunctions.wrap(this.store, WasmValType.I32, this::trace));
-        GameCanvas.defineImport(linker, "traceUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf8));
-        GameCanvas.defineImport(linker, "traceUtf16", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf16));
-        GameCanvas.defineImport(linker, "tracef", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::tracef));
+        this.defineImport(linker, "trace", WasmFunctions.wrap(this.store, WasmValType.I32, this::trace));
+        this.defineImport(linker, "traceUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf8));
+        this.defineImport(linker, "traceUtf16", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf16));
+        this.defineImport(linker, "tracef", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::tracef));
 
         Extern memoryExtern = this.memory.createExtern();
-        linker.define("env", "memory", memoryExtern);
+        linker.define(this.store, "env", "memory", memoryExtern);
     }
 
     // External functions
@@ -349,9 +351,12 @@ public class GameCanvas {
         String message1;
         String message2;
 
-        if (e instanceof TrapException trapException) {
-            message1 = "Execution error! (TRAP) [ " + trapException.trap().exitCode() + " ]";
-            message2 = trapException.trap().trapCode() != null ? trapException.trap().trapCode().name() : "<NULL>";
+        if (e instanceof TrapError trapError) {
+            message1 = "Execution error! (TRAP)";
+            message2 = trapError.trap() != null ? trapError.trap().name() : "<NULL>";
+        } else if (e instanceof I32ExitError exitError) {
+            message1 = "Execution error! (EXIT)";
+            message2 = "Exit code " + exitError.exitCode();
         } else {
             message1 = "Runtime error!";
             message2 = e.getMessage();
