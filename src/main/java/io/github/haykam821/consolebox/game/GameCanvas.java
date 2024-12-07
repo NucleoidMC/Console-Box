@@ -319,9 +319,9 @@ public class GameCanvas {
         }
     }
 
-    public void updateGamepad(int id, float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
+    public void updateGamepad(int id, boolean forward, boolean left, boolean backward, boolean right, boolean isSneaking, boolean isJumping) {
         synchronized (this) {
-            this.memory.updateGamepad(id, leftRight, upDown, isSneaking, isJumping);
+            this.memory.updateGamepad(id, forward, left, backward, right, isSneaking, isJumping);
         }
     }
 

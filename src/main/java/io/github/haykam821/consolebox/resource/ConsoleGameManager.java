@@ -16,7 +16,7 @@ import net.minecraft.resource.ResourceType;
 import net.minecraft.util.Identifier;
 
 public class ConsoleGameManager implements SimpleSynchronousResourceReloadListener {
-	private static final Identifier ID = new Identifier(ConsoleBox.MOD_ID, "console_games");
+	private static final Identifier ID = ConsoleBox.identifier("console_games");
 	private static final Logger LOGGER = LoggerFactory.getLogger("ConsoleGameManager");
 
 	private static final String GAME_PREFIX = "console_games";
@@ -50,9 +50,10 @@ public class ConsoleGameManager implements SimpleSynchronousResourceReloadListen
 
 	private Identifier parsePath(Identifier id) {
 		String prefix = GAME_PREFIX + "/";
-		String path = id.getPath().substring(prefix.length(), id.getPath().length() - GAME_EXTENSION.length());
 
-		return new Identifier(id.getNamespace(), path);
+		return id.withPath(path -> {
+			return path.substring(prefix.length(), path.length() - GAME_EXTENSION.length());
+		});
 	}
 
 	public static byte[] getGameData(Identifier id) {

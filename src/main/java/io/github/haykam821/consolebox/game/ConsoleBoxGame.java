@@ -4,38 +4,44 @@ import eu.pb4.mapcanvas.api.utils.VirtualDisplay;
 import io.github.haykam821.consolebox.game.audio.BaseAudioController;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.MuleEntity;
+import net.minecraft.entity.player.PlayerPosition;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
 import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
-import net.minecraft.registry.RegistryKeys;
+import net.minecraft.network.packet.s2c.play.PositionFlag;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.ActionResult;
+import net.minecraft.util.PlayerInput;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import xyz.nucleoid.fantasy.RuntimeWorldConfig;
 import xyz.nucleoid.fantasy.util.VoidChunkGenerator;
-import xyz.nucleoid.plasmid.game.*;
-import xyz.nucleoid.plasmid.game.event.GameActivityEvents;
-import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
-import xyz.nucleoid.plasmid.game.player.PlayerOffer;
-import xyz.nucleoid.plasmid.game.player.PlayerOfferResult;
-import xyz.nucleoid.plasmid.game.rule.GameRuleType;
+import xyz.nucleoid.plasmid.api.game.*;
+import xyz.nucleoid.plasmid.api.game.common.PlayerLimiter;
+import xyz.nucleoid.plasmid.api.game.common.config.PlayerLimiterConfig;
+import xyz.nucleoid.plasmid.api.game.event.GameActivityEvents;
+import xyz.nucleoid.plasmid.api.game.event.GamePlayerEvents;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptor;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptorResult;
+import xyz.nucleoid.plasmid.api.game.rule.GameRuleType;
+import xyz.nucleoid.stimuli.event.EventResult;
 import xyz.nucleoid.stimuli.event.player.PlayerC2SPacketEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
 import java.util.Set;
 
-public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.Destroy, GameActivityEvents.Tick, GameActivityEvents.Enable, GamePlayerEvents.Remove, GamePlayerEvents.Offer, PlayerDamageEvent, PlayerDeathEvent, PlayerC2SPacketEvent {
+public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.Destroy, GameActivityEvents.Tick, GameActivityEvents.Enable, GamePlayerEvents.Remove, GamePlayerEvents.Accept, PlayerDamageEvent, PlayerDeathEvent, PlayerC2SPacketEvent {
     private final Thread thread;
 
     private final GameSpace gameSpace;
@@ -86,7 +92,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         ConsoleBoxConfig config = context.config();
 
         RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
-                .setGenerator(new VoidChunkGenerator(context.server().getRegistryManager().get(RegistryKeys.BIOME)));
+                .setGenerator(new VoidChunkGenerator(context.server()));
 
 
         var audioController = new BaseAudioController();
@@ -101,12 +107,14 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
             audioController.setOutput(phase);
             ConsoleBoxGame.setRules(activity);
 
+            PlayerLimiter.addTo(activity, new PlayerLimiterConfig(phase.players.length));
+
             // Listeners
             activity.listen(GamePlayerEvents.ADD, phase);
             activity.listen(GameActivityEvents.ENABLE, phase);
             activity.listen(GameActivityEvents.DESTROY, phase);
             activity.listen(GameActivityEvents.TICK, phase);
-            activity.listen(GamePlayerEvents.OFFER, phase);
+            activity.listen(GamePlayerEvents.ACCEPT, phase);
             activity.listen(PlayerDamageEvent.EVENT, phase);
             activity.listen(PlayerDeathEvent.EVENT, phase);
             activity.listen(GamePlayerEvents.REMOVE, phase);
@@ -132,7 +140,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     }
 
     @Override
-    public ActionResult onPacket(ServerPlayerEntity player, Packet<?> packet) {
+    public EventResult onPacket(ServerPlayerEntity player, Packet<?> packet) {
         int id = -1;
         for (int i = 0; i < 4; i++) {
             if (this.players[i] == player) {
@@ -142,27 +150,31 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         }
 
         if (id == -1) {
-            return ActionResult.PASS;
+            return EventResult.PASS;
         }
 
         if (packet instanceof PlayerInputC2SPacket playerInputC2SPacket) {
-            var isJumping = this.config.swapXZ() ? playerInputC2SPacket.isSneaking() : playerInputC2SPacket.isJumping();
-            var isSneaking = !this.config.swapXZ() ? playerInputC2SPacket.isSneaking() : playerInputC2SPacket.isJumping();
+            PlayerInput input = playerInputC2SPacket.input();
 
-            this.canvas.updateGamepad(id, playerInputC2SPacket.getSideways(), playerInputC2SPacket.getForward(),
+            var isJumping = this.config.swapXZ() ? input.sneak() : input.jump();
+            var isSneaking = !this.config.swapXZ() ? input.sneak() : input.jump();
+
+            this.canvas.updateGamepad(id, input.forward(), input.left(), input.backward(), input.right(),
                     isSneaking, isJumping);
         }
 
-        return ActionResult.PASS;
+        return EventResult.PASS;
     }
 
     @Override
     public void onTick() {
         for (var player : this.players) {
             if (player != null) {
+                PlayerPosition pos = new PlayerPosition(Vec3d.ZERO, Vec3d.ZERO, 180, 0);
+                Set<PositionFlag> flags = Set.of();
+
                 player.networkHandler.sendPacket(
-                        new PlayerPositionLookS2CPacket(player.getX(), player.getY(), player.getZ(), 180f, 0f,
-                                Set.of(), 0));
+                        new PlayerPositionLookS2CPacket(0, pos, flags));
             }
         }
     }
@@ -191,15 +203,15 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
     // /game open {type:"consolebox:console_box", game:"consolebox:cart"}
     @Override
-    public PlayerOfferResult onOfferPlayer(PlayerOffer offer) {
+    public JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
         Vec3d spawnPos = this.canvas.getSpawnPos();
 
-        if (this.playerCount < this.config.playerCount()) {
+        if (acceptor.intent().canPlay()) {
             for (int i = 0; i < players.length; i++) {
                 final var x = i;
                 if (this.players[x] == null) {
-                    return offer.accept(this.world, spawnPos).and(() -> {
-                        this.players[x] = offer.player();
+                    return acceptor.teleport(this.world, spawnPos).thenRunForEach(player -> {
+                        this.players[x] = player;
                         this.playerCount++;
 
                         this.spawnMount(spawnPos, this.players[x]);
@@ -210,19 +222,19 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         }
 
         Vec3d pos = spawnPos.add(this.config.spectatorSpawnOffset());
-        return offer.accept(this.world, pos).and(() -> {
-            this.initializePlayer(offer.player(), GameMode.SPECTATOR);
+        return acceptor.teleport(this.world, pos).thenRunForEach(player -> {
+            this.initializePlayer(player, GameMode.SPECTATOR);
         });
     }
 
     @Override
-    public ActionResult onDamage(ServerPlayerEntity player, DamageSource source, float damage) {
-        return ActionResult.FAIL;
+    public EventResult onDamage(ServerPlayerEntity player, DamageSource source, float damage) {
+        return EventResult.DENY;
     }
 
     @Override
-    public ActionResult onDeath(ServerPlayerEntity player, DamageSource source) {
-        return ActionResult.FAIL;
+    public EventResult onDeath(ServerPlayerEntity player, DamageSource source) {
+        return EventResult.DENY;
     }
 
     @Override
@@ -240,7 +252,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
             for (int i = 0; i < 4; i++) {
                 if (this.players[i] == player) {
                     this.players[i] = null;
-                    this.canvas.updateGamepad(i, 0, 0, false, false);
+                    this.canvas.updateGamepad(i, false, false, false, false, false, false);
                     this.playerCount--;
                     break;
                 }
@@ -250,7 +262,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
     // Utilities
     private Entity spawnMount(Vec3d playerPos, ServerPlayerEntity player) {
-        MuleEntity mount = EntityType.MULE.create(this.world);
+        MuleEntity mount = EntityType.MULE.create(this.world, SpawnReason.JOCKEY);
         mount.calculateDimensions();
         double y = playerPos.getY() - 1.25f;
         mount.setPos(playerPos.getX(), y, playerPos.getZ());
@@ -266,7 +278,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         mount.setInvisible(true);
 
         // Remove mount hearts from HUD
-        mount.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(0);
+        mount.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(0);
 
         this.world.spawnEntity(mount);
         player.startRiding(mount, true);
@@ -285,7 +297,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         player.setPitch(Float.MIN_VALUE);
     }
 
-    private StatusEffectInstance createInfiniteStatusEffect(StatusEffect statusEffect) {
-        return new StatusEffectInstance(statusEffect, Integer.MAX_VALUE, 0, true, false);
+    private StatusEffectInstance createInfiniteStatusEffect(RegistryEntry<StatusEffect> statusEffect) {
+        return new StatusEffectInstance(statusEffect, StatusEffectInstance.INFINITE, 0, true, false);
     }
 }
