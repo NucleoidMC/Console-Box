@@ -79,6 +79,9 @@ public final class GameMemory {
 	}
 
 	public String readString(int start) {
+		return new String(readStringRaw(start), StandardCharsets.US_ASCII);
+	}
+	public byte[] readStringRaw(int start) {
 		int length = 0;
 
 		while (this.buffer.hasRemaining()) {
@@ -87,14 +90,29 @@ public final class GameMemory {
 			if (character == 0x00) {
 				byte[] bytes = new byte[length];
 				this.buffer.get(start, bytes, 0, length);
-
-				return new String(bytes, StandardCharsets.US_ASCII);
+				return bytes;
 			} else {
 				length += 1;
 			}
 		}
 
-		return "";
+		return new byte[0];
+	}
+
+	public byte[] readUnterminatedStringRaw8(int start, int length) {
+		var bytes = new byte[length];
+		for (int i = 0; i < length; i++) {
+			bytes[i] = this.buffer.get(start + i);
+		}
+		return bytes;
+	}
+
+	public byte[] readUnterminatedStringRaw16LE(int start, int length) {
+		var bytes = new byte[length];
+		for (int i = 0; i < length; i++) {
+			bytes[i] = this.buffer.get(start + i * 2);
+		}
+		return bytes;
 	}
 
 	public String readUnterminatedString(int start, int length, Charset charset) {

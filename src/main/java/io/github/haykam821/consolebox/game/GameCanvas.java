@@ -6,6 +6,8 @@ import eu.pb4.mapcanvas.api.utils.CanvasUtils;
 import io.github.haykam821.consolebox.ConsoleBox;
 import io.github.haykam821.consolebox.game.audio.AudioChannel;
 import io.github.haykam821.consolebox.game.audio.AudioController;
+import io.github.haykam821.consolebox.game.audio.ToneDuty;
+import io.github.haykam821.consolebox.game.audio.TonePan;
 import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
 import io.github.kawamuray.wasmtime.Module;
@@ -22,8 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -33,26 +33,28 @@ import java.util.List;
 public class GameCanvas {
     private static final Logger LOGGER = LoggerFactory.getLogger("GameCanvas");
 
-    private static final CanvasImage BACKGROUND;
+    private static final CanvasImage DEFAULT_BACKGROUND = readImage("default_background");
+    private static final CanvasImage DEFAULT_OVERLAY = readImage("default_overlay");
+    private static final int BACKGROUND_SCALE = 2;
 
-    static {
+    private static CanvasImage readImage(String path) {
         CanvasImage temp;
         try {
             temp = CanvasImage.from(ImageIO.read(
-                    Files.newInputStream(FabricLoader.getInstance().getModContainer(ConsoleBox.MOD_ID).get().findPath("background.png").get())));
+                    Files.newInputStream(FabricLoader.getInstance().getModContainer(ConsoleBox.MOD_ID).get().findPath("data/consolebox/background/" + path + ".png").get())));
         } catch (Throwable e) {
-            temp = null;
+            temp = new CanvasImage(128, 128);
 
             e.printStackTrace();
         }
-        BACKGROUND = temp;
+        return temp;
     }
 
     private static final int RENDER_SCALE = 1;
     private static final int MAP_SIZE = FilledMapItem.field_30907;
     private static final int SECTION_SIZE = MathHelper.ceil(HardwareConstants.SCREEN_WIDTH * RENDER_SCALE / (double) MAP_SIZE);
-    private static final int SECTION_HEIGHT = 3;
-    private static final int SECTION_WIDTH = 4;
+    private static final int SECTION_HEIGHT = 6;
+    private static final int SECTION_WIDTH = 8;
 
     private static final Consumer0 EMPTY_CALLBACK = () -> {
     };
@@ -88,8 +90,25 @@ public class GameCanvas {
         this.palette = new GamePalette(this.memory);
         this.canvas = DrawableCanvas.create(SECTION_WIDTH, SECTION_HEIGHT);
         CanvasUtils.clear(this.canvas, CanvasColor.GRAY_HIGH);
-        if (BACKGROUND != null) {
-            CanvasUtils.draw(this.canvas, 0, 0, BACKGROUND);
+        if (DEFAULT_BACKGROUND != null) {
+            var background = DEFAULT_BACKGROUND;
+            var width = background.getWidth() * BACKGROUND_SCALE;
+            var height = background.getHeight() * BACKGROUND_SCALE;
+            var repeatsX = Math.ceilDiv(this.canvas.getWidth(), width);
+            var repeatsY = Math.ceilDiv(this.canvas.getHeight(), height);
+
+            for (int x = 0; x < repeatsX; x++) {
+                for (int y = 0; y < repeatsY; y++) {
+                    CanvasUtils.draw(this.canvas, x * width, y * height, width, height, background);
+                }
+            }
+        }
+
+        if (DEFAULT_OVERLAY != null) {
+            var background = DEFAULT_OVERLAY;
+            var width = background.getWidth() * BACKGROUND_SCALE;
+            var height = background.getHeight() * BACKGROUND_SCALE;
+            CanvasUtils.draw(this.canvas, this.canvas.getWidth() / 2 - width / 2, this.canvas.getHeight() / 2 - height / 2, width, height, background);
         }
 
         var text = """
@@ -226,23 +245,23 @@ public class GameCanvas {
         FramebufferRendering.drawRect(buffer, fillColor, strokeColor, x, y, width, height);
     }
 
-    private void drawText(String string, int x, int y) {
+    // This function needs to work on raw bytes, as Java strips invalid chars
+    private void drawText(byte[] string, int x, int y) {
         ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
-
         FramebufferRendering.drawText(buffer, drawColors, string, x, y);
     }
 
     private void text(int string, int x, int y) {
-        this.drawText(this.memory.readString(string), x, y);
+        this.drawText(this.memory.readStringRaw(string), x, y);
     }
 
     private void textUtf8(int string, int length, int x, int y) {
-        this.drawText(this.memory.readUnterminatedString(string, length, StandardCharsets.UTF_8), x, y);
+        this.drawText(this.memory.readUnterminatedStringRaw8(string, length), x, y);
     }
 
     private void textUtf16(int string, int length, int x, int y) {
-        this.drawText(this.memory.readUnterminatedString(string, length, StandardCharsets.UTF_16LE), x, y);
+        this.drawText(this.memory.readUnterminatedStringRaw16LE(string, length), x, y);
     }
 
     private void tone(int frequency, int duration, int volume, int flags) {
@@ -253,12 +272,30 @@ public class GameCanvas {
             default -> AudioChannel.NOISE;
         };
 
+        var duty = switch ((flags >> 2) & 0b11) {
+            case 0 -> ToneDuty.MODE_12_5;
+            case 1 -> ToneDuty.MODE_25;
+            case 2 -> ToneDuty.MODE_50;
+            default -> ToneDuty.MODE_75;
+        };
+
+        var pan = switch ((flags >> 4) & 0b11) {
+            case 1 -> TonePan.LEFT;
+            case 2 -> TonePan.RIGHT;
+            default -> TonePan.CENTER;
+        };
+
+
         var freq1 = frequency & 0xFFFF;
         var freq2 = (frequency >> 16) & 0xFFFF;
 
         var sustainTime = duration & 0xFF;
 
-        this.audioController.playSound(channel, freq1, sustainTime);
+        var volumeActual = volume & 0xFF;
+        var volumePeak = (volume >> 8) & 0xFF;
+
+
+        this.audioController.playSound(channel, duty, pan, freq1, freq2, sustainTime, volumeActual, volumePeak);
 
         // Intentionally empty as sound is unsupported
     }
@@ -400,13 +437,13 @@ public class GameCanvas {
     }
 
     public BlockPos getDisplayPos() {
-        return new BlockPos(-SECTION_WIDTH, SECTION_HEIGHT, 0);
+        return new BlockPos(-SECTION_WIDTH, SECTION_HEIGHT + 100, 0);
     }
 
     public Vec3d getSpawnPos() {
         BlockPos displayPos = this.getDisplayPos();
 
-        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f, 1.1);
+        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f + 1, 1.5);
     }
 
     public int getSpawnAngle() {

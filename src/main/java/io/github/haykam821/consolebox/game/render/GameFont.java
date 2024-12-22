@@ -1,10 +1,12 @@
 package io.github.haykam821.consolebox.game.render;
 
+import net.minecraft.util.Util;
+
 import java.nio.ByteBuffer;
 
 public final class GameFont {
-	protected static final int CHARACTER_WIDTH = 8;
-	protected static final int CHARACTER_HEIGHT = CHARACTER_WIDTH;
+	static final int CHARACTER_WIDTH = 8;
+	static final int CHARACTER_HEIGHT = CHARACTER_WIDTH;
 
 	/**
 	 * The packed font spritesheet.
@@ -13,7 +15,7 @@ public final class GameFont {
 	 * <a href="https://github.com/aduros/wasm4/blob/a3f857a25f522072478e4ff0a3c53823974e72a4/runtimes/native/src/framebuffer.c#L8-L233">official WASM-4 runtimes</a>,
 	 * which are licensed under the ISC license.
 	 */
-	protected static final ByteBuffer FONT = ByteBuffer.wrap(new byte[] {
+	static final ByteBuffer FONT = ByteBuffer.wrap(new byte[] {
 		(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
 		(byte) 0xC7, (byte) 0xC7, (byte) 0xC7, (byte) 0xCF, (byte) 0xCF, (byte) 0xFF, (byte) 0xCF, (byte) 0xFF,
 		(byte) 0x93, (byte) 0x93, (byte) 0x93, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,

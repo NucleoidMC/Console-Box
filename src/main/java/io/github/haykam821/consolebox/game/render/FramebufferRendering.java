@@ -283,11 +283,11 @@ public final class FramebufferRendering {
 		}
 	}
 
-	public static void drawText(ByteBuffer buffer, int drawColors, String string, int x, int y) {
+	public static void drawText(ByteBuffer buffer, int drawColors, byte[] string, int x, int y) {
 		int currentX = x;
 
-		for (int index = 0; index < string.length(); index++) {
-			char character = string.charAt(index);
+		for (int index = 0; index < string.length; index++) {
+			int character = Byte.toUnsignedInt(string[index]);
 
 			if (character == '\0') {
 				return;
