@@ -20,6 +20,7 @@ import net.minecraft.item.FilledMapItem;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +69,9 @@ public class GameCanvas {
 
     private final GamePalette palette;
     private final CombinedPlayerCanvas canvas;
+
+    @Nullable
+    private CanvasIcon mouse = null;
 
     private final WasmFunctions.Consumer0 startCallback;
     private WasmFunctions.Consumer0 updateCallback;
@@ -354,11 +358,32 @@ public class GameCanvas {
                 index += 2;
             }
         }
+        /*this.canvas.set(Short.reverseBytes(this.memory.getBuffer().getShort(0x001a)) + DRAW_OFFSET_X,
+                Short.reverseBytes(this.memory.getBuffer().getShort(0x001c)) + DRAW_OFFSET_Y, CanvasColor.RED_HIGH);*/
     }
 
     public void updateGamepad(int id, boolean forward, boolean left, boolean backward, boolean right, boolean isSneaking, boolean isJumping) {
         synchronized (this) {
             this.memory.updateGamepad(id, forward, left, backward, right, isSneaking, isJumping);
+        }
+    }
+
+    public void updateMousePosition(int id, int mouseX, int mouseY) {
+        synchronized (this) {
+            //if (this.mouse == null) {
+            ////    this.mouse = this.canvas.createIcon(MapDecorationTypes.PLAYER, (mouseX + DRAW_OFFSET_X) * 2, (mouseY + DRAW_OFFSET_Y) * 2, (byte) 0, null);
+            //} else {
+            //    this.mouse.move((mouseX + DRAW_OFFSET_X) * 2, (mouseY + DRAW_OFFSET_Y) * 2, this.mouse.getRotation());
+            //    System.out.println((mouseX + DRAW_OFFSET_X) * 2);
+            //    System.out.println((mouseY + DRAW_OFFSET_Y) * 2);
+            //}
+            this.memory.updateMousePosition(id, mouseX, mouseY);
+        }
+    }
+
+    public void updateMouseState(int id, boolean leftClick, boolean rightClick, boolean middleClick) {
+        synchronized (this) {
+            this.memory.updateMouseState(id, leftClick, rightClick, middleClick);
         }
     }
 

@@ -10,9 +10,6 @@ import io.github.kawamuray.wasmtime.Extern;
 import io.github.kawamuray.wasmtime.Memory;
 import io.github.kawamuray.wasmtime.MemoryType;
 import io.github.kawamuray.wasmtime.Store;
-import net.minecraft.entity.passive.MuleEntity;
-import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
-import net.minecraft.server.network.ServerPlayerEntity;
 
 public final class GameMemory {
 	private static final int PALETTE_ADDRESS = 0x0004;
@@ -136,6 +133,34 @@ public final class GameMemory {
 		if (backward) gamepad |= 128; // Down
 
 		this.buffer.put(GAMEPADS_ADDRESS + id, gamepad);
+	}
+
+	public void updateMousePosition(int id, int mouseX, int mouseY) {
+		if (id != 0) {
+			return;
+		}
+		this.buffer.putShort(MOUSE_X_ADDRESS, Short.reverseBytes((short) mouseX));
+		this.buffer.putShort(MOUSE_Y_ADDRESS, Short.reverseBytes((short) mouseY));
+	}
+
+	public void updateMouseState(int id, boolean leftClick, boolean rightClick, boolean mouseMiddle) {
+		if (id != 0) {
+			return;
+		}
+		byte buttons = 0;
+
+		if (leftClick) {
+			buttons |= 1;
+		}
+
+		if (rightClick) {
+			buttons |= 2;
+		}
+
+		if (mouseMiddle) {
+			buttons |= 4;
+		}
+		this.buffer.put(MOUSE_BUTTONS_ADDRESS, buttons);
 	}
 
 	private void initializeMemory() {
