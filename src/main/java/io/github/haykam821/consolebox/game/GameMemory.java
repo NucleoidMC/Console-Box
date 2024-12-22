@@ -108,6 +108,7 @@ public final class GameMemory {
 	}
 
 	public byte[] readUnterminatedStringRaw16LE(int start, int length) {
+		length /= 2;
 		var bytes = new byte[length];
 		for (int i = 0; i < length; i++) {
 			bytes[i] = this.buffer.get(start + i * 2);
