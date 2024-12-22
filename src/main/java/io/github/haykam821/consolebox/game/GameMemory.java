@@ -105,16 +105,16 @@ public final class GameMemory {
 		return this.buffer.slice(start, width * height * bit);
 	}
 
-	public void updateGamepad(int id, float leftRight, float upDown, boolean isSneaking, boolean isJumping) {
+	public void updateGamepad(int id, boolean forward, boolean left, boolean backward, boolean right, boolean isSneaking, boolean isJumping) {
 		byte gamepad = 0;
 
 		if (isJumping) gamepad |= 1; // Z
 		if (isSneaking) gamepad |= 2; // X
 
-		if (leftRight > 0) gamepad |= 16; // Left
-		if (leftRight < 0) gamepad |= 32; // Right
-		if (upDown > 0) gamepad |= 64; // Up
-		if (upDown < 0) gamepad |= 128; // Down
+		if (left) gamepad |= 16; // Left
+		if (right) gamepad |= 32; // Right
+		if (forward) gamepad |= 64; // Up
+		if (backward) gamepad |= 128; // Down
 
 		this.buffer.put(GAMEPADS_ADDRESS + id, gamepad);
 	}

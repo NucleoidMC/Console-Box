@@ -1,6 +1,7 @@
 package io.github.haykam821.consolebox.game;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import io.github.haykam821.consolebox.resource.ConsoleGameManager;
@@ -8,7 +9,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.dynamic.Codecs;
 import net.minecraft.util.math.Vec3d;
-import xyz.nucleoid.plasmid.game.GameOpenException;
+import xyz.nucleoid.plasmid.api.game.GameOpenException;
 
 public record ConsoleBoxConfig(
 	Identifier game,
@@ -18,7 +19,7 @@ public record ConsoleBoxConfig(
 ) {
 	private static final Vec3d DEFAULT_SPECTATOR_SPAWN_OFFSET = new Vec3d(0, 2, 0);
 
-	public static final Codec<ConsoleBoxConfig> CODEC = RecordCodecBuilder.create(instance -> {
+	public static final MapCodec<ConsoleBoxConfig> CODEC = RecordCodecBuilder.mapCodec(instance -> {
 		return instance.group(
 			Identifier.CODEC.fieldOf("game").forGetter(ConsoleBoxConfig::game),
 			Codecs.VECTOR_3F.xmap(Vec3d::new, Vec3d::toVector3f).optionalFieldOf("spectator_spawn_offset", DEFAULT_SPECTATOR_SPAWN_OFFSET).forGetter(ConsoleBoxConfig::spectatorSpawnOffset),
