@@ -1,5 +1,14 @@
 package io.github.haykam821.consolebox.game;
 
+import com.dylibso.chicory.experimental.aot.AotMachine;
+import com.dylibso.chicory.experimental.hostmodule.annotations.HostModule;
+import com.dylibso.chicory.experimental.hostmodule.annotations.WasmExport;
+import com.dylibso.chicory.runtime.*;
+import com.dylibso.chicory.wasm.ChicoryException;
+import com.dylibso.chicory.wasm.MalformedException;
+import com.dylibso.chicory.wasm.Parser;
+import com.dylibso.chicory.wasm.WasmModule;
+import com.dylibso.chicory.wasm.types.ValueType;
 import eu.pb4.mapcanvas.api.core.*;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
@@ -10,28 +19,27 @@ import io.github.haykam821.consolebox.game.audio.ToneDuty;
 import io.github.haykam821.consolebox.game.audio.TonePan;
 import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
-import io.github.kawamuray.wasmtime.Module;
-import io.github.kawamuray.wasmtime.WasmFunctionError.I32ExitError;
-import io.github.kawamuray.wasmtime.WasmFunctionError.TrapError;
-import io.github.kawamuray.wasmtime.*;
-import io.github.kawamuray.wasmtime.WasmFunctions.Consumer0;
+import io.github.haykam821.consolebox.mixin.ParserAccessor;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
+
+@HostModule("env")
 public class GameCanvas {
     private static final Logger LOGGER = LoggerFactory.getLogger("GameCanvas");
 
@@ -59,37 +67,46 @@ public class GameCanvas {
     private static final int SECTION_HEIGHT = 6;
     private static final int SECTION_WIDTH = 8;
 
-    private static final Consumer0 EMPTY_CALLBACK = () -> {
-    };
+    private static final ExportFunction EMPTY_CALLBACK = (long... longs) -> new long[0];
     private static final int DRAW_OFFSET_X = (SECTION_WIDTH * 64 - HardwareConstants.SCREEN_WIDTH / 2);
     private static final int DRAW_OFFSET_Y = (SECTION_HEIGHT * 64 - HardwareConstants.SCREEN_HEIGHT / 2);
 
     private final ConsoleBoxConfig config;
 
-    private final Store<Void> store;
     private final GameMemory memory;
 
     private final GamePalette palette;
     private final CombinedPlayerCanvas canvas;
 
-    private final WasmFunctions.Consumer0 startCallback;
-    private WasmFunctions.Consumer0 updateCallback;
+    private final ExportFunction startCallback;
+    private ExportFunction updateCallback;
     private final AudioController audioController;
     private SaveHandler saveHandler = SaveHandler.NO_OP;
 
     public GameCanvas(ConsoleBoxConfig config, AudioController audioController) {
+
+
         this.config = config;
         this.audioController = audioController;
-        this.store = Store.withoutData();
-        this.memory = new GameMemory(this.store);
+        this.memory = new GameMemory();
 
-        Engine engine = this.store.engine();
+        var importBuilder = ImportValues.builder();
+        this.defineImports(importBuilder);
+        WasmModule.Builder moduleBuilder = WasmModule.builder();
+        try {
+            var parser = new Parser();
+            parser.parse(new ByteArrayInputStream(config.getGameData()), (s) -> ParserAccessor.callOnSection(moduleBuilder, s));
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+        moduleBuilder.setMemorySection(null);
+        var module = moduleBuilder.build();
 
-        Linker linker = new Linker(this.store.engine());
-        this.defineImports(linker);
 
-        Module module = new Module(engine, config.getGameData());
-        linker.module(this.store, "", module);
+        Instance instance = Instance.builder(module)
+                .withImportValues(importBuilder.build())
+                .withMachineFactory(AotMachine::new)
+                .build();
 
         this.palette = new GamePalette(this.memory);
         this.canvas = DrawableCanvas.create(SECTION_WIDTH, SECTION_HEIGHT);
@@ -137,50 +154,23 @@ public class GameCanvas {
         DefaultFonts.VANILLA.drawText(this.canvas, text, DRAW_OFFSET_X - 78, DRAW_OFFSET_Y + HardwareConstants.SCREEN_HEIGHT - 59, 8, CanvasColor.BLACK_HIGH);
         DefaultFonts.VANILLA.drawText(this.canvas, text, DRAW_OFFSET_X - 79, DRAW_OFFSET_Y + HardwareConstants.SCREEN_HEIGHT - 60, 8, CanvasColor.WHITE_HIGH);
 
-        this.startCallback = this.getCallback(linker, "start");
-        this.updateCallback = this.getCallback(linker, "update");
+        this.startCallback = this.getCallback(instance, "start");
+        this.updateCallback = this.getCallback(instance, "update");
     }
 
-    private void defineImport(Linker linker, String name, Func func) {
-        Extern extern = Extern.fromFunc(func);
-        linker.define(this.store, "env", name, extern);
-    }
-
-    private void defineImports(Linker linker) {
-        this.defineImport(linker, "blit", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::blit));
-        this.defineImport(linker, "blitSub", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::blitSub));
-
-        this.defineImport(linker, "line", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::line));
-        this.defineImport(linker, "hline", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::hline));
-        this.defineImport(linker, "vline", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::vline));
-
-        this.defineImport(linker, "oval", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::oval));
-        this.defineImport(linker, "rect", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::rect));
-
-        this.defineImport(linker, "text", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::text));
-        this.defineImport(linker, "textUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::textUtf8));
-        this.defineImport(linker, "textUtf16", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::textUtf16));
-
-        this.defineImport(linker, "tone", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::tone));
-
-        this.defineImport(linker, "diskr", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskr));
-        this.defineImport(linker, "diskw", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, WasmValType.I32, this::diskw));
-
-        this.defineImport(linker, "trace", WasmFunctions.wrap(this.store, WasmValType.I32, this::trace));
-        this.defineImport(linker, "traceUtf8", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf8));
-        this.defineImport(linker, "traceUtf16", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::traceUtf16));
-        this.defineImport(linker, "tracef", WasmFunctions.wrap(this.store, WasmValType.I32, WasmValType.I32, this::tracef));
-
-        Extern memoryExtern = this.memory.createExtern();
-        linker.define(this.store, "env", "memory", memoryExtern);
+    private void defineImports(ImportValues.Builder linker) {
+        linker.addFunction(toHostFunctions());
+        linker.addMemory(new ImportMemory("env", "memory", this.memory.memory()));
     }
 
     // External functions
-    private void blit(int spriteAddress, int x, int y, int width, int height, int flags) {
+    @WasmExport("blit")
+    public void blit(int spriteAddress, int x, int y, int width, int height, int flags) {
         this.blitSub(spriteAddress, x, y, width, height, 0, 0, width, flags);
     }
 
-    private void blitSub(int spriteAddress, int x, int y, int width, int height, int sourceX, int sourceY, int stride, int flags) {
+    @WasmExport("blitSub")
+    public void blitSub(int spriteAddress, int x, int y, int width, int height, int sourceX, int sourceY, int stride, int flags) {
         ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
         boolean bpp2 = (flags & 1) > 0;
@@ -191,14 +181,16 @@ public class GameCanvas {
         FramebufferRendering.drawSprite(buffer, drawColors, this.memory.getBuffer(), spriteAddress, x, y, width, height, sourceX, sourceY, stride, bpp2, flipX, flipY, rotate);
     }
 
-    private void line(int x1, int y1, int x2, int y2) {
+    @WasmExport("line")
+    public void line(int x1, int y1, int x2, int y2) {
         ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
 
         FramebufferRendering.drawLine(buffer, drawColors, x1, y1, x2, y2);
     }
 
-    private void hline(int x, int y, int length) {
+    @WasmExport("hline")
+    public void hline(int x, int y, int length) {
         byte strokeColor = (byte) (this.memory.readDrawColors() & 0b1111);
 
         if (strokeColor != 0) {
@@ -210,7 +202,8 @@ public class GameCanvas {
         }
     }
 
-    private void vline(int x, int y, int length) {
+    @WasmExport("vline")
+    public void vline(int x, int y, int length) {
         if (y + length <= 0 || x < 0 || x >= HardwareConstants.SCREEN_HEIGHT) {
             return;
         }
@@ -232,14 +225,16 @@ public class GameCanvas {
         }
     }
 
-    private void oval(int x, int y, int width, int height) {
+    @WasmExport("oval")
+    public void oval(int x, int y, int width, int height) {
         ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
 
         FramebufferRendering.drawOval(buffer, drawColors, x, y, width, height);
     }
 
-    private void rect(int x, int y, int width, int height) {
+    @WasmExport("rect")
+    public void rect(int x, int y, int width, int height) {
         ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
 
@@ -256,19 +251,23 @@ public class GameCanvas {
         FramebufferRendering.drawText(buffer, drawColors, string, x, y);
     }
 
-    private void text(int string, int x, int y) {
+    @WasmExport("text")
+    public void text(int string, int x, int y) {
         this.drawText(this.memory.readStringRaw(string), x, y);
     }
 
-    private void textUtf8(int string, int length, int x, int y) {
+    @WasmExport("textUtf8")
+    public void textUtf8(int string, int length, int x, int y) {
         this.drawText(this.memory.readUnterminatedStringRaw8(string, length), x, y);
     }
 
-    private void textUtf16(int string, int length, int x, int y) {
+    @WasmExport("textUtf16")
+    public void textUtf16(int string, int length, int x, int y) {
         this.drawText(this.memory.readUnterminatedStringRaw16LE(string, length), x, y);
     }
 
-    private void tone(int frequency, int duration, int volume, int flags) {
+    @WasmExport("tone")
+    public void tone(int frequency, int duration, int volume, int flags) {
         var channel = switch (flags & 0b11) {
             case 0 -> AudioChannel.PULSE_1;
             case 1 -> AudioChannel.PULSE_2;
@@ -304,7 +303,8 @@ public class GameCanvas {
         // Intentionally empty as sound is unsupported
     }
 
-    private int diskr(int address, int size) {
+    @WasmExport("diskr")
+    public int diskr(int address, int size) {
         if (!this.saveHandler.canUse()) {
             return 0;
         }
@@ -318,7 +318,8 @@ public class GameCanvas {
         return 0;
     }
 
-    private int diskw(int address, int size) {
+    @WasmExport("diskw")
+    public int diskw(int address, int size) {
         if (!this.saveHandler.canUse()) {
             return 0;
         }
@@ -332,20 +333,28 @@ public class GameCanvas {
         return 0;
     }
 
-    private void trace(int string) {
+    @WasmExport("trace")
+    public void trace(int string) {
         LOGGER.trace("From game: {}", this.memory.readString(string));
     }
 
-    private void traceUtf8(int string, int length) {
+    @WasmExport("traceUtf8")
+    public void traceUtf8(int string, int length) {
         LOGGER.trace("From game: {}", this.memory.readUnterminatedString(string, length, StandardCharsets.UTF_8));
     }
 
-    private void traceUtf16(int string, int length) {
+    @WasmExport("traceUtf16")
+    public void traceUtf16(int string, int length) {
         LOGGER.trace("From game: {}", this.memory.readUnterminatedString(string, length, StandardCharsets.UTF_16LE));
     }
 
-    private void tracef(int string, int stack) {
+    @WasmExport("tracef")
+    public void tracef(int string, int stack) {
         LOGGER.trace("From game (unformatted): {}", this.memory.readString(string));
+    }
+
+    private HostFunction[] toHostFunctions() {
+        return GameCanvas_ModuleFactory.toHostFunctions(this);
     }
 
     // Behavior
@@ -357,7 +366,7 @@ public class GameCanvas {
             }
         }
 
-        this.updateCallback.accept();
+        this.updateCallback.apply();
     }
 
     public void render() {
@@ -417,7 +426,8 @@ public class GameCanvas {
                     this.error = e;
                 }
             }
-            //DefaultFonts.VANILLA.drawText(this.canvas, "TIME: +" + lastTime, 0, 0, 8, CanvasColor.RED_HIGH);
+            CanvasUtils.fill(this.canvas, DRAW_OFFSET_X, DRAW_OFFSET_Y - 18, DRAW_OFFSET_X + 80, DRAW_OFFSET_Y - 8, CanvasColor.BLACK_NORMAL);
+            DefaultFonts.VANILLA.drawText(this.canvas, "TIME: " + lastTime, DRAW_OFFSET_X + 2, DRAW_OFFSET_Y - 17, 8, CanvasColor.WHITE_HIGH);
             this.canvas.sendUpdates();
         }
     }
@@ -438,13 +448,13 @@ public class GameCanvas {
         String message1;
         String message2;
 
-        if (e instanceof TrapError trapError) {
+        if (e instanceof TrapException trapError) {
             message1 = "Execution error! (TRAP)";
-            message2 = trapError.trap() != null ? trapError.trap().name() : "<NULL>";
-        } else if (e instanceof I32ExitError exitError) {
+            message2 = trapError.getMessage();
+        } /*else if (e instanceof I32ExitError exitError) {
             message1 = "Execution error! (EXIT)";
             message2 = "Exit code " + exitError.exitCode();
-        } else {
+        } */else {
             message1 = "Runtime error!";
             message2 = e.getMessage();
         }
@@ -479,7 +489,7 @@ public class GameCanvas {
     public void start() {
         synchronized (this) {
             try {
-                this.startCallback.accept();
+                this.startCallback.apply();
                 this.palette.update();
                 this.render();
             } catch (Throwable e) {
@@ -514,9 +524,11 @@ public class GameCanvas {
         return this.canvas;
     }
 
-    private Consumer0 getCallback(Linker linker, String name) {
-        return linker.get(this.store, "", name)
-                .map(extern -> WasmFunctions.consumer(this.store, extern.func()))
-                .orElse(EMPTY_CALLBACK);
+    private ExportFunction getCallback(Instance instance, String name) {
+        try {
+            return instance.export(name);
+        } catch (Throwable e) {
+            return EMPTY_CALLBACK;
+        }
     }
 }

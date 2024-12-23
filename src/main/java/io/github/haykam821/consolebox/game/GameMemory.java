@@ -4,11 +4,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-import io.github.haykam821.consolebox.mixin.MemoryTypeAccessor;
-import io.github.kawamuray.wasmtime.Extern;
-import io.github.kawamuray.wasmtime.Memory;
-import io.github.kawamuray.wasmtime.MemoryType;
-import io.github.kawamuray.wasmtime.Store;
+import com.dylibso.chicory.runtime.Memory;
+import com.dylibso.chicory.wasm.types.MemoryLimits;
+import io.github.haykam821.consolebox.mixin.MemoryAccessor;
 
 public final class GameMemory {
 	private static final int PALETTE_ADDRESS = 0x0004;
@@ -25,24 +23,24 @@ public final class GameMemory {
 	private static final int FRAMEBUFFER_SIZE = 6400;
 
 	private final Memory memory;
-
 	private final ByteBuffer buffer;
 	private final ByteBuffer framebuffer;
-	protected GameMemory(Store<Void> store) {
-		this.memory = GameMemory.createMemory(store, HardwareConstants.MEMORY_PAGES);
 
-		this.buffer = memory.buffer(store);
+	protected GameMemory() {
+		this.memory = GameMemory.createMemory(HardwareConstants.MEMORY_PAGES);
+		// Todo: fix it later
+		this.buffer = ((MemoryAccessor) (Object) this.memory).getBuffer();
 		this.framebuffer = this.buffer.slice(FRAMEBUFFER_ADDRESS, FRAMEBUFFER_SIZE);
-
 		this.initializeMemory();
+
+	}
+
+	public Memory memory() {
+		return this.memory;
 	}
 
 	public ByteBuffer getBuffer() {
 		return this.buffer;
-	}
-
-	public Extern createExtern() {
-		return Extern.fromMemory(this.memory);
 	}
 
 	public ByteBuffer getFramebuffer() {
@@ -176,10 +174,7 @@ public final class GameMemory {
 		return "GameMemory{" + this.memory + "}";
 	}
 
-	private static Memory createMemory(Store<Void> store, int pages) {
-		MemoryType memoryType = new MemoryType(pages, false);
-		((MemoryTypeAccessor) (Object) memoryType).setMaximum(pages);
-
-		return new Memory(store, memoryType);
+	private static Memory createMemory(int pages) {
+		return new Memory(new MemoryLimits(pages, pages));
 	}
 }

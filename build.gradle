@@ -31,8 +31,11 @@ dependencies {
 	// Plasmid
 	modImplementation("xyz.nucleoid:plasmid:${project.plasmid_version}")
 
-	// Wasmtime
-	include implementation("io.github.kawamuray.wasmtime:wasmtime-java:${project.wasmtime_version}")
+	// Chicory
+	include implementation("com.dylibso.chicory:runtime:${project.chicory_version}")
+	include implementation("com.dylibso.chicory:aot-experimental:${project.chicory_version}")
+	compileOnly("com.dylibso.chicory:host-module-annotations-experimental:${project.chicory_version}")
+	annotationProcessor("com.dylibso.chicory:host-module-processor-experimental:${project.chicory_version}")
 }
 
 processResources {
