@@ -2,7 +2,6 @@ package io.github.haykam821.consolebox.game;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
 import io.github.haykam821.consolebox.mixin.MemoryTypeAccessor;
@@ -29,7 +28,6 @@ public final class GameMemory {
 
 	private final ByteBuffer buffer;
 	private final ByteBuffer framebuffer;
-
 	protected GameMemory(Store<Void> store) {
 		this.memory = GameMemory.createMemory(store, HardwareConstants.MEMORY_PAGES);
 

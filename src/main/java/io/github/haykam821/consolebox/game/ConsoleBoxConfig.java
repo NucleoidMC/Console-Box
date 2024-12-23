@@ -15,7 +15,8 @@ public record ConsoleBoxConfig(
 	Identifier game,
 	Vec3d spectatorSpawnOffset,
 	int playerCount,
-	boolean swapXZ
+	boolean swapXZ,
+	boolean save
 ) {
 	private static final Vec3d DEFAULT_SPECTATOR_SPAWN_OFFSET = new Vec3d(0, 2, 0);
 
@@ -24,7 +25,8 @@ public record ConsoleBoxConfig(
 			Identifier.CODEC.fieldOf("game").forGetter(ConsoleBoxConfig::game),
 			Codecs.VECTOR_3F.xmap(Vec3d::new, Vec3d::toVector3f).optionalFieldOf("spectator_spawn_offset", DEFAULT_SPECTATOR_SPAWN_OFFSET).forGetter(ConsoleBoxConfig::spectatorSpawnOffset),
 			Codec.intRange(1, 4).optionalFieldOf("players", 1).forGetter(ConsoleBoxConfig::playerCount),
-			Codec.BOOL.optionalFieldOf("swap_x_z", false).forGetter(ConsoleBoxConfig::swapXZ)
+			Codec.BOOL.optionalFieldOf("swap_x_z", false).forGetter(ConsoleBoxConfig::swapXZ),
+			Codec.BOOL.optionalFieldOf("save", false).forGetter(ConsoleBoxConfig::save)
 		).apply(instance, ConsoleBoxConfig::new);
 	});
 

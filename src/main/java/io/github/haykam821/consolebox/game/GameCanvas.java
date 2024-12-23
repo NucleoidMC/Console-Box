@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class GameCanvas {
     private static final Logger LOGGER = LoggerFactory.getLogger("GameCanvas");
@@ -37,6 +38,7 @@ public class GameCanvas {
     private static final CanvasImage DEFAULT_BACKGROUND = readImage("default_background");
     private static final CanvasImage DEFAULT_OVERLAY = readImage("default_overlay");
     private static final int BACKGROUND_SCALE = 2;
+    private Throwable error;
 
     private static CanvasImage readImage(String path) {
         CanvasImage temp;
@@ -70,12 +72,10 @@ public class GameCanvas {
     private final GamePalette palette;
     private final CombinedPlayerCanvas canvas;
 
-    @Nullable
-    private CanvasIcon mouse = null;
-
     private final WasmFunctions.Consumer0 startCallback;
     private WasmFunctions.Consumer0 updateCallback;
     private final AudioController audioController;
+    private SaveHandler saveHandler = SaveHandler.NO_OP;
 
     public GameCanvas(ConsoleBoxConfig config, AudioController audioController) {
         this.config = config;
@@ -305,13 +305,30 @@ public class GameCanvas {
     }
 
     private int diskr(int address, int size) {
-        //this.//memory.copyDisk(address, size);
+        if (!this.saveHandler.canUse()) {
+            return 0;
+        }
+        var data = this.saveHandler.getData();
+        if (data == null) {
+            return 0;
+        }
+
+        this.memory.getBuffer().put(address, data, 0, size);
         // Intentionally empty as persistent storage is unsupported
         return 0;
     }
 
     private int diskw(int address, int size) {
-        // Intentionally empty as persistent storage is unsupported
+        if (!this.saveHandler.canUse()) {
+            return 0;
+        }
+        try {
+            var bytes = new byte[Math.min(size, 1024)];
+            this.memory.getBuffer().get(address, bytes);
+            this.saveHandler.setData(ByteBuffer.wrap(bytes));
+        } catch (Throwable e) {
+            this.error = e;
+        }
         return 0;
     }
 
@@ -389,16 +406,24 @@ public class GameCanvas {
 
     public void tick(long lastTime) {
         synchronized (this) {
-            try {
-                this.update();
-                this.palette.update();
-                this.render();
-            } catch (Throwable e) {
-                this.drawError(e);
+            if (this.error != null) {
+                this.drawError(error);
+            } else {
+                try {
+                    this.update();
+                    this.palette.update();
+                    this.render();
+                } catch (Throwable e) {
+                    this.error = e;
+                }
             }
             //DefaultFonts.VANILLA.drawText(this.canvas, "TIME: +" + lastTime, 0, 0, 8, CanvasColor.RED_HIGH);
             this.canvas.sendUpdates();
         }
+    }
+
+    public void clearError() {
+        this.error = null;
     }
 
     private void drawError(Throwable e) {
@@ -429,11 +454,13 @@ public class GameCanvas {
         var builder = new StringBuilder();
 
         for (var x : message2.toCharArray()) {
-            if (DefaultFonts.VANILLA.getTextWidth(builder.toString() + x, 8) > HardwareConstants.SCREEN_WIDTH - 10) {
+            if (x == '\n' || DefaultFonts.VANILLA.getTextWidth(builder.toString() + x, 8) > HardwareConstants.SCREEN_WIDTH - 10) {
                 message2Split.add(builder.toString());
                 builder = new StringBuilder();
             }
-            builder.append(x);
+            if (x != '\n') {
+                builder.append(x);
+            }
         }
         message2Split.add(builder.toString());
 
@@ -450,16 +477,24 @@ public class GameCanvas {
     }
 
     public void start() {
-        try {
-            this.startCallback.accept();
-            this.palette.update();
-            this.render();
-        } catch (Throwable e) {
-            this.drawError(e);
-            e.printStackTrace();
-            this.updateCallback = EMPTY_CALLBACK;
+        synchronized (this) {
+            try {
+                this.startCallback.accept();
+                this.palette.update();
+                this.render();
+            } catch (Throwable e) {
+                this.error = e;
+                this.drawError(e);
+                e.printStackTrace();
+                this.updateCallback = EMPTY_CALLBACK;
+            }
         }
     }
+
+    public void setSaveHandler(SaveHandler handler) {
+        this.saveHandler = handler;
+    }
+
 
     public BlockPos getDisplayPos() {
         return new BlockPos(-SECTION_WIDTH, SECTION_HEIGHT + 100, 0);

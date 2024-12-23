@@ -12,10 +12,8 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.MuleEntity;
 import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerLoadedC2SPacket;
-import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
-import net.minecraft.network.packet.s2c.play.SetCameraEntityS2CPacket;
+import net.minecraft.network.packet.c2s.play.*;
+import net.minecraft.network.packet.s2c.play.*;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -23,7 +21,6 @@ import net.minecraft.util.PlayerInput;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
-import net.minecraft.world.dimension.DimensionType;
 import net.minecraft.world.dimension.DimensionTypes;
 import xyz.nucleoid.fantasy.RuntimeWorldConfig;
 import xyz.nucleoid.fantasy.util.VoidChunkGenerator;
@@ -40,6 +37,11 @@ import xyz.nucleoid.stimuli.event.player.PlayerC2SPacketEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
 public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.Destroy, GameActivityEvents.Tick, GameActivityEvents.Enable, GamePlayerEvents.Remove, GamePlayerEvents.Accept, PlayerDamageEvent, PlayerDeathEvent, PlayerC2SPacketEvent {
     private final Thread thread;
     private final GameSpace gameSpace;
@@ -51,6 +53,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     private final ServerPlayerEntity[] players = new ServerPlayerEntity[4];
     private volatile boolean runs = true;
     private int playerCount = 0;
+    private boolean hasStarted = false;
 
     public ConsoleBoxGame(GameSpace gameSpace, ServerWorld world, ConsoleBoxConfig config, GameCanvas canvas, Entity cameraEntity, VirtualDisplay display) {
         this.gameSpace = gameSpace;
@@ -103,6 +106,8 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
                     .invisible()
                     .build();
 
+            //world.setBlockState(BlockPos.ofFloored(canvas.getSpawnPos()), Blocks.BARRIER.getDefaultState());
+
             var camera = EntityType.ITEM_DISPLAY.create(world, SpawnReason.LOAD);
             assert camera != null;
             camera.setInvisible(true);
@@ -138,8 +143,6 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
             activity.listen(PlayerDeathEvent.EVENT, phase);
             activity.listen(GamePlayerEvents.REMOVE, phase);
             activity.listen(PlayerC2SPacketEvent.EVENT, phase);
-
-            canvas.start();
         });
     }
 
@@ -181,6 +184,9 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
             this.canvas.updateGamepad(id, input.forward(), input.left(), input.backward(), input.right(),
                     isSneaking, isJumping);
+            if (input.sprint()) {
+                this.canvas.clearError();
+            }
         } else if (packet instanceof PlayerLoadedC2SPacket) {
             player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.cameraEntity));
         }
@@ -190,6 +196,11 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
     @Override
     public void onTick() {
+        if (!this.hasStarted) {
+            this.thread.start();
+            this.hasStarted = true;
+        }
+
         for (var player : this.gameSpace.getPlayers()) {
             if (player.getCameraEntity() != this.cameraEntity && this.cameraEntity.age > 2) {
                 player.setCameraEntity(this.cameraEntity);
@@ -200,11 +211,12 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
     @Override
     public void onEnable() {
-        this.thread.start();
+
     }
 
     private void runThread() {
         try {
+            this.canvas.start();
             long time;
             long lastTime = 0;
             while (this.runs) {
@@ -229,6 +241,9 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
                 final var x = i;
                 if (this.players[x] == null) {
                     return acceptor.teleport(this.world, spawnPos).thenRunForEach(player -> {
+                        if (x == 0 && this.config.save()) {
+                            this.canvas.setSaveHandler(SaveHandler.player(player, this.gameSpace, this.config.game()));
+                        }
                         this.players[x] = player;
                         this.playerCount++;
                         this.spawnMount(spawnPos.add(0, 10, 0), this.players[x]);
@@ -289,6 +304,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         mount.setNoGravity(true);
         mount.setSilent(true);
         mount.setPersistent();
+        mount.setInvulnerable(true);
         mount.getAttributeInstance(EntityAttributes.SCALE).setBaseValue(0);
 
         // Prevent mount from being visible

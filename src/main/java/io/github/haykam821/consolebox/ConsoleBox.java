@@ -1,7 +1,9 @@
 package io.github.haykam821.consolebox;
 
+import eu.pb4.playerdata.api.PlayerDataApi;
 import io.github.haykam821.consolebox.game.ConsoleBoxConfig;
 import io.github.haykam821.consolebox.game.ConsoleBoxGame;
+import io.github.haykam821.consolebox.game.SaveHandler;
 import io.github.haykam821.consolebox.resource.ConsoleGameManager;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.util.Identifier;
@@ -16,6 +18,7 @@ public class ConsoleBox implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		ConsoleGameManager.register();
+		PlayerDataApi.register(SaveHandler.Player.STORAGE);
 	}
 
 	public static Identifier identifier(String path) {
