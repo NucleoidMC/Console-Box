@@ -503,7 +503,7 @@ public class GameCanvas {
     public Vec3d getSpawnPos() {
         BlockPos displayPos = this.getDisplayPos();
 
-        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f + 1, 1.5);
+        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f + 1, 1.3);
     }
 
     public int getSpawnAngle() {
