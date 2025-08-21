@@ -35,7 +35,7 @@ dependencies {
 	include implementation("com.dylibso.chicory:runtime:${project.chicory_version}")
 	include implementation("com.dylibso.chicory:compiler:${project.chicory_version}")
 	compileOnly("com.dylibso.chicory:annotations:${project.chicory_version}")
-	annotationProcessor("com.dylibso.chicory:annotations:${project.chicory_version}")
+	annotationProcessor("com.dylibso.chicory:annotations-processor:${project.chicory_version}")
 }
 
 processResources {
