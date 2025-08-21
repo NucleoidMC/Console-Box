@@ -1,14 +1,12 @@
 package io.github.haykam821.consolebox.game;
 
-import com.dylibso.chicory.experimental.aot.AotMachine;
-import com.dylibso.chicory.experimental.hostmodule.annotations.HostModule;
-import com.dylibso.chicory.experimental.hostmodule.annotations.WasmExport;
+import com.dylibso.chicory.annotations.HostModule;
+import com.dylibso.chicory.annotations.WasmExport;
+import com.dylibso.chicory.compiler.InterpreterFallback;
+import com.dylibso.chicory.compiler.MachineFactoryCompiler;
 import com.dylibso.chicory.runtime.*;
-import com.dylibso.chicory.wasm.ChicoryException;
-import com.dylibso.chicory.wasm.MalformedException;
 import com.dylibso.chicory.wasm.Parser;
 import com.dylibso.chicory.wasm.WasmModule;
-import com.dylibso.chicory.wasm.types.ValueType;
 import eu.pb4.mapcanvas.api.core.*;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
@@ -84,8 +82,6 @@ public class GameCanvas {
     private SaveHandler saveHandler = SaveHandler.NO_OP;
 
     public GameCanvas(ConsoleBoxConfig config, AudioController audioController) {
-
-
         this.config = config;
         this.audioController = audioController;
         this.memory = new GameMemory();
@@ -94,18 +90,24 @@ public class GameCanvas {
         this.defineImports(importBuilder);
         WasmModule.Builder moduleBuilder = WasmModule.builder();
         try {
-            var parser = new Parser();
-            parser.parse(new ByteArrayInputStream(config.getGameData()), (s) -> ParserAccessor.callOnSection(moduleBuilder, s));
+            Parser.builder().build().parse(new ByteArrayInputStream(config.getGameData()), (s) -> ParserAccessor.callOnSection(moduleBuilder, s));
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
         moduleBuilder.setMemorySection(null);
         var module = moduleBuilder.build();
 
+        var imports = module.importSection();
+        for (var i = 0; i < imports.importCount(); i++) {
+            var im = imports.getImport(i);
+        }
 
         Instance instance = Instance.builder(module)
                 .withImportValues(importBuilder.build())
-                .withMachineFactory(AotMachine::new)
+                .withMachineFactory(
+                        MachineFactoryCompiler.builder(module)
+                        .withInterpreterFallback(InterpreterFallback.SILENT)
+                        .compile())
                 .build();
 
         this.palette = new GamePalette(this.memory);
@@ -171,22 +173,20 @@ public class GameCanvas {
 
     @WasmExport("blitSub")
     public void blitSub(int spriteAddress, int x, int y, int width, int height, int sourceX, int sourceY, int stride, int flags) {
-        ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
         boolean bpp2 = (flags & 1) > 0;
         boolean flipX = (flags & 2) > 0;
         boolean flipY = (flags & 4) > 0;
         boolean rotate = (flags & 8) > 0;
 
-        FramebufferRendering.drawSprite(buffer, drawColors, this.memory.getBuffer(), spriteAddress, x, y, width, height, sourceX, sourceY, stride, bpp2, flipX, flipY, rotate);
+        FramebufferRendering.drawSprite(this.memory, drawColors, this.memory::read, spriteAddress, x, y, width, height, sourceX, sourceY, stride, bpp2, flipX, flipY, rotate);
     }
 
     @WasmExport("line")
     public void line(int x1, int y1, int x2, int y2) {
-        ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
 
-        FramebufferRendering.drawLine(buffer, drawColors, x1, y1, x2, y2);
+        FramebufferRendering.drawLine(this.memory, drawColors, x1, y1, x2, y2);
     }
 
     @WasmExport("hline")
@@ -197,8 +197,7 @@ public class GameCanvas {
             strokeColor -= 1;
             strokeColor &= 0x3;
 
-            ByteBuffer buffer = this.memory.getFramebuffer();
-            FramebufferRendering.drawHLineUnclipped(buffer, strokeColor, x, y, x + length);
+            FramebufferRendering.drawHLineUnclipped(this.memory, strokeColor, x, y, x + length);
         }
     }
 
@@ -214,41 +213,37 @@ public class GameCanvas {
             strokeColor -= 1;
             strokeColor &= 0x3;
 
-            ByteBuffer buffer = this.memory.getFramebuffer();
 
             int startY = Math.max(0, y);
             int endY = Math.min(HardwareConstants.SCREEN_HEIGHT, y + length);
 
             for (int dy = startY; dy < endY; dy++) {
-                FramebufferRendering.drawPointUnclipped(buffer, strokeColor, x, dy);
+                FramebufferRendering.drawPointUnclipped(this.memory, strokeColor, x, dy);
             }
         }
     }
 
     @WasmExport("oval")
     public void oval(int x, int y, int width, int height) {
-        ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
 
-        FramebufferRendering.drawOval(buffer, drawColors, x, y, width, height);
+        FramebufferRendering.drawOval(this.memory, drawColors, x, y, width, height);
     }
 
     @WasmExport("rect")
     public void rect(int x, int y, int width, int height) {
-        ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
 
         byte fillColor = (byte) (drawColors & 0b1111);
         byte strokeColor = (byte) (drawColors >>> 4 & 0b1111);
 
-        FramebufferRendering.drawRect(buffer, fillColor, strokeColor, x, y, width, height);
+        FramebufferRendering.drawRect(this.memory, fillColor, strokeColor, x, y, width, height);
     }
 
     // This function needs to work on raw bytes, as Java strips invalid chars
     private void drawText(byte[] string, int x, int y) {
-        ByteBuffer buffer = this.memory.getFramebuffer();
         int drawColors = this.memory.readDrawColors();
-        FramebufferRendering.drawText(buffer, drawColors, string, x, y);
+        FramebufferRendering.drawText(this.memory, drawColors, string, x, y);
     }
 
     @WasmExport("text")
@@ -313,7 +308,9 @@ public class GameCanvas {
             return 0;
         }
 
-        this.memory.getBuffer().put(address, data, 0, size);
+        var bytes = new byte[size];
+        data.get(address, bytes);
+        this.memory.write(address, bytes);
         // Intentionally empty as persistent storage is unsupported
         return 0;
     }
@@ -324,8 +321,7 @@ public class GameCanvas {
             return 0;
         }
         try {
-            var bytes = new byte[Math.min(size, 1024)];
-            this.memory.getBuffer().get(address, bytes);
+            var bytes = this.memory.read(address, Math.min(size, 1024));
             this.saveHandler.setData(ByteBuffer.wrap(bytes));
         } catch (Throwable e) {
             this.error = e;
@@ -360,32 +356,24 @@ public class GameCanvas {
     // Behavior
     private void update() {
         if (!this.memory.readSystemPreserveFramebuffer()) {
-            ByteBuffer buffer = this.memory.getFramebuffer();
-            for (int index = 0; index < buffer.limit(); index++) {
-                buffer.put(index, (byte) 0x0);
-            }
+            this.memory.memory().fill((byte) 0x0, GameMemory.FRAMEBUFFER_ADDRESS, GameMemory.FRAMEBUFFER_ADDRESS + GameMemory.FRAMEBUFFER_SIZE);
         }
 
         this.updateCallback.apply();
     }
 
     public void render() {
-        ByteBuffer buffer = this.memory.getFramebuffer();
         int index = 0;
 
         for (int y = 0; y < HardwareConstants.SCREEN_HEIGHT; y++) {
             for (int x = 0; x < HardwareConstants.SCREEN_WIDTH; x++) {
                 int colorAddress = index >>> 3;
-                byte color = (byte) (buffer.get(colorAddress) >>> (index % 8) & 0b11);
+                byte color = (byte) (this.memory.read(GameMemory.FRAMEBUFFER_ADDRESS + colorAddress) >>> (index % 8) & 0b11);
 
-                this.canvas.set(x + DRAW_OFFSET_X,
-                        y + DRAW_OFFSET_Y,
-                        this.palette.getColor(color));
+                this.canvas.set(x + DRAW_OFFSET_X, y + DRAW_OFFSET_Y, this.palette.getColor(color));
                 index += 2;
             }
         }
-        /*this.canvas.set(Short.reverseBytes(this.memory.getBuffer().getShort(0x001a)) + DRAW_OFFSET_X,
-                Short.reverseBytes(this.memory.getBuffer().getShort(0x001c)) + DRAW_OFFSET_Y, CanvasColor.RED_HIGH);*/
     }
 
     public void updateGamepad(int id, boolean forward, boolean left, boolean backward, boolean right, boolean isSneaking, boolean isJumping) {
@@ -396,13 +384,6 @@ public class GameCanvas {
 
     public void updateMousePosition(int id, int mouseX, int mouseY) {
         synchronized (this) {
-            //if (this.mouse == null) {
-            ////    this.mouse = this.canvas.createIcon(MapDecorationTypes.PLAYER, (mouseX + DRAW_OFFSET_X) * 2, (mouseY + DRAW_OFFSET_Y) * 2, (byte) 0, null);
-            //} else {
-            //    this.mouse.move((mouseX + DRAW_OFFSET_X) * 2, (mouseY + DRAW_OFFSET_Y) * 2, this.mouse.getRotation());
-            //    System.out.println((mouseX + DRAW_OFFSET_X) * 2);
-            //    System.out.println((mouseY + DRAW_OFFSET_Y) * 2);
-            //}
             this.memory.updateMousePosition(id, mouseX, mouseY);
         }
     }

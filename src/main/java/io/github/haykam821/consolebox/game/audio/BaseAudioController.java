@@ -21,7 +21,7 @@ public class BaseAudioController implements AudioController {
         assert right != null;
         var sound = switch (channel) {
             case PULSE_1, PULSE_2 -> switch (duty) {
-                case MODE_50, MODE_12_5 ->  SoundEvents.BLOCK_NOTE_BLOCK_HARP;
+                case MODE_50, MODE_12_5 -> SoundEvents.BLOCK_NOTE_BLOCK_HARP;
                 default -> SoundEvents.BLOCK_NOTE_BLOCK_FLUTE;
             };
             case TRIANGLE -> SoundEvents.BLOCK_NOTE_BLOCK_BASS;

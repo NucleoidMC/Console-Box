@@ -4,9 +4,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+import com.dylibso.chicory.runtime.ByteArrayMemory;
 import com.dylibso.chicory.runtime.Memory;
 import com.dylibso.chicory.wasm.types.MemoryLimits;
-import io.github.haykam821.consolebox.mixin.MemoryAccessor;
 
 public final class GameMemory {
 	private static final int PALETTE_ADDRESS = 0x0004;
@@ -19,38 +19,44 @@ public final class GameMemory {
 	private static final int SYSTEM_FLAGS_ADDRESS = 0x001F;
 	private static final int NETPLAY_ADDRESS = 0x001F;
 
-	private static final int FRAMEBUFFER_ADDRESS = 0x00a0;
-	private static final int FRAMEBUFFER_SIZE = 6400;
+	public static final int FRAMEBUFFER_ADDRESS = 0x00a0;
+	public static final int FRAMEBUFFER_SIZE = 6400;
 
 	private final Memory memory;
-	private final ByteBuffer buffer;
-	private final ByteBuffer framebuffer;
 
-	protected GameMemory() {
+	GameMemory() {
 		this.memory = GameMemory.createMemory(HardwareConstants.MEMORY_PAGES);
-		// Todo: fix it later
-		this.buffer = ((MemoryAccessor) (Object) this.memory).getBuffer();
-		this.framebuffer = this.buffer.slice(FRAMEBUFFER_ADDRESS, FRAMEBUFFER_SIZE);
 		this.initializeMemory();
-
 	}
 
 	public Memory memory() {
 		return this.memory;
 	}
 
-	public ByteBuffer getBuffer() {
-		return this.buffer;
+	public byte read(int address) {
+		return this.memory.read(address);
 	}
 
-	public ByteBuffer getFramebuffer() {
-		return this.framebuffer;
+	public byte[] read(int address, int length) {
+		return this.memory.readBytes(address, length);
+	}
+
+	public int readByte(int address) {
+		return Byte.toUnsignedInt(this.memory.read(address));
+	}
+
+	public void write(int address, byte value) {
+		this.memory.writeByte(address, value);
+	}
+
+	public void write(int address, byte[] value) {
+		this.memory.write(address, value);
 	}
 
 	public int readColor(int start) {
-		int r = this.buffer.get(start) & 0xFF;
-		int g = this.buffer.get(start + 1) & 0xFF;
-		int b = this.buffer.get(start + 2) & 0xFF;
+		int r = this.memory.read(start) & 0xFF;
+		int g = this.memory.read(start + 1) & 0xFF;
+		int b = this.memory.read(start + 2) & 0xFF;
 
 		return r | g << 8 | b << 16;
 	}
@@ -60,11 +66,11 @@ public final class GameMemory {
 	}
 
 	public byte readSystemFlags() {
-		return this.buffer.get(SYSTEM_FLAGS_ADDRESS);
+		return this.memory.read(SYSTEM_FLAGS_ADDRESS);
 	}
 
 	public int readDrawColors() {
-		return (this.buffer.get(DRAW_COLORS_ADDRESS + 1) << 8) + this.buffer.get(DRAW_COLORS_ADDRESS);
+		return (this.memory.read(DRAW_COLORS_ADDRESS + 1) << 8) + this.memory.read(DRAW_COLORS_ADDRESS);
 	}
 
 	public boolean readSystemPreserveFramebuffer() {
@@ -77,13 +83,11 @@ public final class GameMemory {
 	public byte[] readStringRaw(int start) {
 		int length = 0;
 
-		while (this.buffer.hasRemaining()) {
-			byte character = this.buffer.get(start + length);
+		while (this.memory.initialPages() * Memory.PAGE_SIZE > start + length) {
+			byte character = this.memory.read(start + length);
 
 			if (character == 0x00) {
-				byte[] bytes = new byte[length];
-				this.buffer.get(start, bytes, 0, length);
-				return bytes;
+				return this.memory.readBytes(start, length);
 			} else {
 				length += 1;
 			}
@@ -95,7 +99,7 @@ public final class GameMemory {
 	public byte[] readUnterminatedStringRaw8(int start, int length) {
 		var bytes = new byte[length];
 		for (int i = 0; i < length; i++) {
-			bytes[i] = this.buffer.get(start + i);
+			bytes[i] = this.memory.read(start + i);
 		}
 		return bytes;
 	}
@@ -104,17 +108,13 @@ public final class GameMemory {
 		length /= 2;
 		var bytes = new byte[length];
 		for (int i = 0; i < length; i++) {
-			bytes[i] = this.buffer.get(start + i * 2);
+			bytes[i] = this.memory.read(start + i * 2);
 		}
 		return bytes;
 	}
 
 	public String readUnterminatedString(int start, int length, Charset charset) {
-		return charset.decode(this.buffer.slice(start, length)).toString();
-	}
-
-	public ByteBuffer readSprite(int start, int width, int height, int bit) {
-		return this.buffer.slice(start, width * height * bit);
+		return charset.decode(ByteBuffer.wrap(this.read(start, length))).toString();
 	}
 
 	public void updateGamepad(int id, boolean forward, boolean left, boolean backward, boolean right, boolean isSneaking, boolean isJumping) {
@@ -128,15 +128,15 @@ public final class GameMemory {
 		if (forward) gamepad |= 64; // Up
 		if (backward) gamepad |= 128; // Down
 
-		this.buffer.put(GAMEPADS_ADDRESS + id, gamepad);
+		this.memory.writeByte(GAMEPADS_ADDRESS + id, gamepad);
 	}
 
 	public void updateMousePosition(int id, int mouseX, int mouseY) {
 		if (id != 0) {
 			return;
 		}
-		this.buffer.putShort(MOUSE_X_ADDRESS, Short.reverseBytes((short) mouseX));
-		this.buffer.putShort(MOUSE_Y_ADDRESS, Short.reverseBytes((short) mouseY));
+		this.memory.writeShort(MOUSE_X_ADDRESS, Short.reverseBytes((short) mouseX));
+		this.memory.writeShort(MOUSE_Y_ADDRESS, Short.reverseBytes((short) mouseY));
 	}
 
 	public void updateMouseState(int id, boolean leftClick, boolean rightClick, boolean mouseMiddle) {
@@ -156,17 +156,17 @@ public final class GameMemory {
 		if (mouseMiddle) {
 			buttons |= 4;
 		}
-		this.buffer.put(MOUSE_BUTTONS_ADDRESS, buttons);
+		this.memory.writeByte(MOUSE_BUTTONS_ADDRESS, buttons);
 	}
 
 	private void initializeMemory() {
-		this.buffer.putInt(PALETTE_ADDRESS, 0xCFF8E000); // Dark green
-		this.buffer.putInt(PALETTE_ADDRESS + 4, 0x6CC08600); // Light green
-		this.buffer.putInt(PALETTE_ADDRESS + 8, 0x50683000); // Dull green
-		this.buffer.putInt(PALETTE_ADDRESS + 12, 0x21180700); // Dark teal
+		this.memory.writeI32(PALETTE_ADDRESS, 0xCFF8E000); // Dark green
+		this.memory.writeI32(PALETTE_ADDRESS + 4, 0x6CC08600); // Light green
+		this.memory.writeI32(PALETTE_ADDRESS + 8, 0x50683000); // Dull green
+		this.memory.writeI32(PALETTE_ADDRESS + 12, 0x21180700); // Dark teal
 
-		this.buffer.put(DRAW_COLORS_ADDRESS, (byte) 0x12);
-		this.buffer.put(DRAW_COLORS_ADDRESS + 1, (byte) 0x03);
+		this.memory.writeByte(DRAW_COLORS_ADDRESS, (byte) 0x12);
+		this.memory.writeByte(DRAW_COLORS_ADDRESS + 1, (byte) 0x03);
 	}
 
 	@Override
@@ -175,6 +175,6 @@ public final class GameMemory {
 	}
 
 	private static Memory createMemory(int pages) {
-		return new Memory(new MemoryLimits(pages, pages));
+		return new ByteArrayMemory(new MemoryLimits(pages, pages));
 	}
 }

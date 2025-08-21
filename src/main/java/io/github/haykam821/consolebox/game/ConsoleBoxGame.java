@@ -151,7 +151,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     public void onAddPlayer(ServerPlayerEntity player) {
         this.display.addPlayer(player);
         this.display.getCanvas().addPlayer(player);
-        player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getId()));
+        player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getIndex()));
         player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.cameraEntity));
     }
 

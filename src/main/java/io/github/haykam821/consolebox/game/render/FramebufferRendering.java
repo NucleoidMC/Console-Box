@@ -1,7 +1,7 @@
 package io.github.haykam821.consolebox.game.render;
 
-import java.nio.ByteBuffer;
-
+import com.dylibso.chicory.runtime.Memory;
+import io.github.haykam821.consolebox.game.GameMemory;
 import io.github.haykam821.consolebox.game.HardwareConstants;
 
 /**
@@ -16,7 +16,7 @@ public final class FramebufferRendering {
 		return;
 	}
 
-	public static void drawPoint(ByteBuffer buffer, byte color, int x, int y) {
+	public static void drawPoint(GameMemory memory, byte color, int x, int y) {
 		if (x >= 0 && x < HardwareConstants.SCREEN_WIDTH && y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
 			int index = HardwareConstants.SCREEN_WIDTH * y + x;
 			int address = index >>> 2;
@@ -24,23 +24,23 @@ public final class FramebufferRendering {
 			int shift = (index % 4) * 2;
 			int mask = 0x3 << shift;
 
-			buffer.put(address, (byte) ((color << shift) | (buffer.get(address) & ~mask)));
+			memory.write(GameMemory.FRAMEBUFFER_ADDRESS + address, (byte) ((color << shift) | (memory.read(GameMemory.FRAMEBUFFER_ADDRESS + address) & ~mask)));
 		}
 	}
 
-	public static void drawPointUnclipped(ByteBuffer buffer, byte color, int x, int y) {
+	public static void drawPointUnclipped(GameMemory memory, byte color, int x, int y) {
 		//if (x >= 0 && x < HardwareConstants.SCREEN_WIDTH && y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
-			FramebufferRendering.drawPoint(buffer, color, x, y);
+			FramebufferRendering.drawPoint(memory, color, x, y);
 		//}
 	}
 
-	public static void drawHLineFast(ByteBuffer buffer, byte color, int startX, int y, int endX) {
+	public static void drawHLineFast(GameMemory memory, byte color, int startX, int y, int endX) {
 		int fillEnd = endX - (endX & 3);
 		int fillStart = Math.min((startX + 3) & ~3, fillEnd);
 
 		if (fillEnd - fillStart > 3) {
 			for (int xx = startX; xx < fillStart; xx++) {
-				FramebufferRendering.drawPoint(buffer, color, xx, y);
+				FramebufferRendering.drawPoint(memory, color, xx, y);
 			}
 
 			int from = (HardwareConstants.SCREEN_WIDTH * y + fillStart) >>> 2;
@@ -48,8 +48,8 @@ public final class FramebufferRendering {
 			byte fillColor = (byte) (color * 0b01010101);
 
 			for (int index = from; index < to; index++) {
-				if (index < buffer.limit()) {
-					buffer.put(index, fillColor);
+				if (index < GameMemory.FRAMEBUFFER_SIZE) {
+					memory.write(GameMemory.FRAMEBUFFER_ADDRESS + index, fillColor);
 				}
 			}
 
@@ -57,11 +57,11 @@ public final class FramebufferRendering {
 		}
 
 		for (int xx = startX; xx < endX; xx++) {
-			FramebufferRendering.drawPoint(buffer, color, xx, y);
+			FramebufferRendering.drawPoint(memory, color, xx, y);
 		}
 	}
 
-	public static void drawHLineUnclipped(ByteBuffer buffer, byte color, int startX, int y, int endX) {
+	public static void drawHLineUnclipped(GameMemory memory, byte color, int startX, int y, int endX) {
 		if (y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
 			if (startX < 0) {
 				startX = 0;
@@ -70,12 +70,12 @@ public final class FramebufferRendering {
 				endX = HardwareConstants.SCREEN_WIDTH;
 			}
 			if (startX < endX) {
-				FramebufferRendering.drawHLineFast(buffer, color, startX, y, endX);
+				FramebufferRendering.drawHLineFast(memory, color, startX, y, endX);
 			}
 		}
 	}
 
-	public static void drawLine(ByteBuffer buffer, int drawColors, int x1, int y1, int x2, int y2) {
+	public static void drawLine(GameMemory memory, int drawColors, int x1, int y1, int x2, int y2) {
 		byte dc0 = (byte) (drawColors & 0xf);
 		if (dc0 == 0) {
 			return;
@@ -97,7 +97,7 @@ public final class FramebufferRendering {
 		int err = (dx > dy ? dx : -dy) / 2, e2;
 
 		for (;;) {
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, x1, y1);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, x1, y1);
 			if (x1 == x2 && y1 == y2) {
 				break;
 			}
@@ -113,7 +113,7 @@ public final class FramebufferRendering {
 		}
 	}
 
-	public static void drawRect(ByteBuffer buffer, byte fillColor, byte strokeColor, int x, int y, int width, int height) {
+	public static void drawRect(GameMemory memory, byte fillColor, byte strokeColor, int x, int y, int width, int height) {
 		int startX = Math.max(0, x);
 		int startY = Math.max(0, y);
 		int endXUnclamped = x + width;
@@ -126,7 +126,7 @@ public final class FramebufferRendering {
 			fillColor &= 0x3;
 
 			for (int yy = startY; yy < endY; ++yy) {
-				FramebufferRendering.drawHLineFast(buffer, fillColor, startX, yy, endX);
+				FramebufferRendering.drawHLineFast(memory, fillColor, startX, yy, endX);
 			}
 		}
 
@@ -137,30 +137,30 @@ public final class FramebufferRendering {
 			// Left edge
 			if (x >= 0 && x < HardwareConstants.SCREEN_WIDTH) {
 				for (int yy = startY; yy < endY; ++yy) {
-					FramebufferRendering.drawPoint(buffer, strokeColor, x, yy);
+					FramebufferRendering.drawPoint(memory, strokeColor, x, yy);
 				}
 			}
 
 			// Right edge
 			if (endXUnclamped >= 0 && endXUnclamped <= HardwareConstants.SCREEN_WIDTH) {
 				for (int yy = startY; yy < endY; ++yy) {
-					FramebufferRendering.drawPoint(buffer, strokeColor, endXUnclamped - 1, yy);
+					FramebufferRendering.drawPoint(memory, strokeColor, endXUnclamped - 1, yy);
 				}
 			}
 
 			// Top edge
 			if (y >= 0 && y < HardwareConstants.SCREEN_HEIGHT) {
-				FramebufferRendering.drawHLineFast(buffer, strokeColor, startX, y, endX);
+				FramebufferRendering.drawHLineFast(memory, strokeColor, startX, y, endX);
 			}
 
 			// Bottom edge
 			if (endYUnclamped >= 0 && endYUnclamped <= HardwareConstants.SCREEN_HEIGHT) {
-				FramebufferRendering.drawHLineFast(buffer, strokeColor, startX, endYUnclamped - 1, endX);
+				FramebufferRendering.drawHLineFast(memory, strokeColor, startX, endYUnclamped - 1, endX);
 			}
 		}
 	}
 
-	public static void drawOval(ByteBuffer buffer, int drawColors, int startX, int startY, int width, int height) {
+	public static void drawOval(GameMemory memory, int drawColors, int startX, int startY, int width, int height) {
 		int dc0 = drawColors & 0xf;
 		int dc1 = (drawColors >> 4) & 0xf;
 
@@ -192,15 +192,15 @@ public final class FramebufferRendering {
 		b1 = 8 * b * b;
 
 		do {
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, east, north);
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, west, north);
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, west, south);
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, east, south);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, east, north);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, west, north);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, west, south);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, east, south);
 			int start = west + 1;
 			int len = east - start;
 			if (dc0 != 0 && len > 0) { // Only draw fill if the length from west to east is not 0
-				FramebufferRendering.drawHLineUnclipped(buffer, fillColor, start, north, east);
-				FramebufferRendering.drawHLineUnclipped(buffer, fillColor, start, south, east);
+				FramebufferRendering.drawHLineUnclipped(memory, fillColor, start, north, east);
+				FramebufferRendering.drawHLineUnclipped(memory, fillColor, start, south, east);
 			}
 			int err2 = 2 * err;
 			if (err2 <= dy) {
@@ -221,20 +221,20 @@ public final class FramebufferRendering {
 
 		// Make sure north and south have moved the entire way so top/bottom aren't missing
 		while (north - south < height) {
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, west - 1, north);
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, east + 1, north);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, west - 1, north);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, east + 1, north);
 			north += 1;
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, west - 1, south); 
-			FramebufferRendering.drawPointUnclipped(buffer, strokeColor, east + 1, south);
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, west - 1, south); 
+			FramebufferRendering.drawPointUnclipped(memory, strokeColor, east + 1, south);
 			south -= 1;
 		}
 	}
 
-	private static byte getInbound(ByteBuffer buffer, int index) {
-		return index < 0 || index >= buffer.limit() ? 0 : buffer.get(index);
+	private static byte getInbound(DataReader memory, int index) {
+		return index < 0 || index >= Memory.PAGE_SIZE ? 0 : memory.read(index);
 	}
 
-	public static void drawSprite(ByteBuffer buffer, int drawColors, ByteBuffer spriteBuffer, int spriteAddress, int startX, int startY, int width, int height, int sourceX, int sourceY, int stride, boolean bpp2, boolean flipX, boolean flipY, boolean rotate) {
+	public static void drawSprite(GameMemory memory, int drawColors, DataReader reader, int spriteAddress, int startX, int startY, int width, int height, int sourceX, int sourceY, int stride, boolean bpp2, boolean flipX, boolean flipY, boolean rotate) {
 		// Clip rectangle to screen
 		int clipXMin, clipYMin, clipXMax, clipYMax;
 		if (rotate) {
@@ -265,11 +265,11 @@ public final class FramebufferRendering {
 				int colorIdx;
 				int bitIndex = sy * stride + sx;
 				if (bpp2) {
-					int colorByte = FramebufferRendering.getInbound(spriteBuffer, spriteAddress + (bitIndex >>> 2));
+					int colorByte = FramebufferRendering.getInbound(reader, spriteAddress + (bitIndex >>> 2));
 					int shift = 6 - ((bitIndex & 0x03) << 1);
 					colorIdx = ((colorByte >>> shift)) & 0b11;
 				} else {
-					int colorByte = FramebufferRendering.getInbound(spriteBuffer, spriteAddress + (bitIndex >>> 3));
+					int colorByte = FramebufferRendering.getInbound(reader, spriteAddress + (bitIndex >>> 3));
 					int shift = 7 - (bitIndex & 0x7);
 					colorIdx = (colorByte >>> shift) & 0b1;
 				}
@@ -277,13 +277,13 @@ public final class FramebufferRendering {
 				// Get the final color using the drawColors indirection
 				int dc = (drawColors >>> (colorIdx << 2)) & 0x0f;
 				if (dc != 0) {
-					FramebufferRendering.drawPoint(buffer, (byte) ((dc - 1) & 0x3), tx, ty);
+					FramebufferRendering.drawPoint(memory, (byte) ((dc - 1) & 0x3), tx, ty);
 				}
 			}
 		}
 	}
 
-	public static void drawText(ByteBuffer buffer, int drawColors, byte[] string, int x, int y) {
+	public static void drawText(GameMemory memory, int drawColors, byte[] string, int x, int y) {
 		int currentX = x;
 
 		for (int index = 0; index < string.length; index++) {
@@ -296,10 +296,14 @@ public final class FramebufferRendering {
 				currentX = x;
 			} else {
 				int sourceY = (character - 32) << 3;
-				FramebufferRendering.drawSprite(buffer, drawColors, GameFont.FONT, 0, currentX, y, GameFont.CHARACTER_WIDTH, GameFont.CHARACTER_HEIGHT, 0, sourceY, GameFont.CHARACTER_WIDTH, false, false, false, false);
+				FramebufferRendering.drawSprite(memory, drawColors, GameFont.FONT::get, 0, currentX, y, GameFont.CHARACTER_WIDTH, GameFont.CHARACTER_HEIGHT, 0, sourceY, GameFont.CHARACTER_WIDTH, false, false, false, false);
 
 				currentX += GameFont.CHARACTER_WIDTH;
 			}
 		}
+	}
+
+	public interface DataReader {
+		byte read(int addr);
 	}
 }

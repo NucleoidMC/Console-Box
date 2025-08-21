@@ -3,7 +3,6 @@
   "package": "io.github.haykam821.consolebox.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "MemoryAccessor",
     "ParserAccessor"
   ],
   "injectors": {
