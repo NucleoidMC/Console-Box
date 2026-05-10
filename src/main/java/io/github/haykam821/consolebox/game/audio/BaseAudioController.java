@@ -1,12 +1,11 @@
 package io.github.haykam821.consolebox.game.audio;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.s2c.play.PlaySoundFromEntityS2CPacket;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-
 import java.util.function.Consumer;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundSoundEntityPacket;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
 
 public class BaseAudioController implements AudioController {
     private Consumer<Packet<?>> consumer = (x) -> {};
@@ -21,17 +20,17 @@ public class BaseAudioController implements AudioController {
         assert right != null;
         var sound = switch (channel) {
             case PULSE_1, PULSE_2 -> switch (duty) {
-                case MODE_50, MODE_12_5 -> SoundEvents.BLOCK_NOTE_BLOCK_HARP;
-                default -> SoundEvents.BLOCK_NOTE_BLOCK_FLUTE;
+                case MODE_50, MODE_12_5 -> SoundEvents.NOTE_BLOCK_HARP;
+                default -> SoundEvents.NOTE_BLOCK_FLUTE;
             };
-            case TRIANGLE -> SoundEvents.BLOCK_NOTE_BLOCK_BASS;
-            case NOISE -> SoundEvents.BLOCK_NOTE_BLOCK_SNARE;
+            case TRIANGLE -> SoundEvents.NOTE_BLOCK_BASS;
+            case NOISE -> SoundEvents.NOTE_BLOCK_SNARE;
         };
         var pitch = freq1 / 500f;
 
         var volume = volumeActual / 100f;
 
-        consumer.accept(new PlaySoundFromEntityS2CPacket(sound, SoundCategory.VOICE, switch (pan) {
+        consumer.accept(new ClientboundSoundEntityPacket(sound, SoundSource.VOICE, switch (pan) {
             case CENTER -> this.center;
             case RIGHT -> this.right;
             case LEFT -> this.left;

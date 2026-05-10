@@ -1,7 +1,5 @@
 package io.github.haykam821.consolebox.game.render;
 
-import net.minecraft.util.Util;
-
 import java.nio.ByteBuffer;
 
 public final class GameFont {

@@ -10,10 +10,10 @@ import org.slf4j.LoggerFactory;
 import io.github.haykam821.consolebox.ConsoleBox;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
 
 public class ConsoleGameManager implements SimpleSynchronousResourceReloadListener {
 	private static final Identifier ID = ConsoleBox.identifier("console_games");
@@ -25,15 +25,15 @@ public class ConsoleGameManager implements SimpleSynchronousResourceReloadListen
 	private static final Map<Identifier, byte[]> GAMES = new HashMap<>();
 
 	@Override
-	public void reload(ResourceManager manager) {
+	public void onResourceManagerReload(ResourceManager manager) {
 		GAMES.clear();
-		manager.findResources(GAME_PREFIX, this::isGamePath).forEach(this::loadResource);
+		manager.listResources(GAME_PREFIX, this::isGamePath).forEach(this::loadResource);
 	}
 
 	private void loadResource(Identifier path, Resource resource) {
 		try {
 			Identifier id = this.parsePath(path);
-			GAMES.put(id, resource.getInputStream().readAllBytes());
+			GAMES.put(id, resource.open().readAllBytes());
 		} catch (IOException exception) {
 			LOGGER.error("Failed to load console game '{}'", path, exception);
 		}
@@ -61,7 +61,7 @@ public class ConsoleGameManager implements SimpleSynchronousResourceReloadListen
 	}
 
 	public static void register() {
-		ResourceManagerHelper serverData = ResourceManagerHelper.get(ResourceType.SERVER_DATA);
+		ResourceManagerHelper serverData = ResourceManagerHelper.get(PackType.SERVER_DATA);
 		serverData.registerReloadListener(new ConsoleGameManager());
 	}
 }

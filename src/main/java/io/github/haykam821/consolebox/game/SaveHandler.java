@@ -4,8 +4,6 @@ import com.mojang.serialization.Codec;
 import eu.pb4.playerdata.api.PlayerDataApi;
 import eu.pb4.playerdata.api.storage.NbtCodecDataStorage;
 import eu.pb4.playerdata.api.storage.PlayerDataStorage;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import xyz.nucleoid.plasmid.api.game.GameSpace;
 import xyz.nucleoid.plasmid.api.util.PlayerRef;
@@ -13,11 +11,13 @@ import xyz.nucleoid.plasmid.api.util.PlayerRef;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
 
 public interface SaveHandler {
     SaveHandler NO_OP = new NoOp();
 
-    static SaveHandler player(ServerPlayerEntity player, GameSpace gameSpace, Identifier identifier) {
+    static SaveHandler player(ServerPlayer player, GameSpace gameSpace, Identifier identifier) {
         return new Player(gameSpace, PlayerRef.of(player), identifier);
     }
 

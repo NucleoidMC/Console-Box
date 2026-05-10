@@ -2,27 +2,29 @@ package io.github.haykam821.consolebox.game;
 
 import eu.pb4.mapcanvas.api.utils.VirtualDisplay;
 import io.github.haykam821.consolebox.game.audio.BaseAudioController;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.passive.MuleEntity;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.play.*;
-import net.minecraft.network.packet.s2c.play.*;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
-import net.minecraft.world.dimension.DimensionTypes;
-import xyz.nucleoid.fantasy.RuntimeWorldConfig;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundGameEventPacket;
+import net.minecraft.network.protocol.game.ClientboundSetCameraPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.equine.Mule;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
+import net.minecraft.world.phys.Vec3;
+import xyz.nucleoid.fantasy.RuntimeLevelConfig;
 import xyz.nucleoid.fantasy.util.VoidChunkGenerator;
 import xyz.nucleoid.plasmid.api.game.*;
 import xyz.nucleoid.plasmid.api.game.common.PlayerLimiter;
@@ -45,17 +47,17 @@ import java.util.Set;
 public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.Destroy, GameActivityEvents.Tick, GameActivityEvents.Enable, GamePlayerEvents.Remove, GamePlayerEvents.Accept, PlayerDamageEvent, PlayerDeathEvent, PlayerC2SPacketEvent {
     private final Thread thread;
     private final GameSpace gameSpace;
-    private final ServerWorld world;
+    private final ServerLevel world;
     private final ConsoleBoxConfig config;
     private final GameCanvas canvas;
     private final VirtualDisplay display;
     private final Entity cameraEntity;
-    private final ServerPlayerEntity[] players = new ServerPlayerEntity[4];
+    private final ServerPlayer[] players = new ServerPlayer[4];
     private volatile boolean runs = true;
     private int playerCount = 0;
     private boolean hasStarted = false;
 
-    public ConsoleBoxGame(GameSpace gameSpace, ServerWorld world, ConsoleBoxConfig config, GameCanvas canvas, Entity cameraEntity, VirtualDisplay display) {
+    public ConsoleBoxGame(GameSpace gameSpace, ServerLevel world, ConsoleBoxConfig config, GameCanvas canvas, Entity cameraEntity, VirtualDisplay display) {
         this.gameSpace = gameSpace;
         this.world = world;
         this.config = config;
@@ -93,39 +95,39 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     public static GameOpenProcedure open(GameOpenContext<ConsoleBoxConfig> context) {
         ConsoleBoxConfig config = context.config();
 
-        RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
-                .setDimensionType(DimensionTypes.OVERWORLD_CAVES)
+        RuntimeLevelConfig worldConfig = new RuntimeLevelConfig()
+                .setDimensionType(BuiltinDimensionTypes.OVERWORLD_CAVES)
                 .setGenerator(new VoidChunkGenerator(context.server()));
 
 
         var audioController = new BaseAudioController();
         GameCanvas canvas = new GameCanvas(config, audioController);
 
-        return context.openWithWorld(worldConfig, (activity, world) -> {
+        return context.openWithLevel(worldConfig, (activity, world) -> {
             VirtualDisplay display = VirtualDisplay.builder(canvas.getCanvas(), canvas.getDisplayPos(), Direction.SOUTH)
                     .invisible()
                     .build();
 
             //world.setBlockState(BlockPos.ofFloored(canvas.getSpawnPos()), Blocks.BARRIER.getDefaultState());
 
-            var camera = EntityType.ITEM_DISPLAY.create(world, SpawnReason.LOAD);
+            var camera = EntityType.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
             assert camera != null;
             camera.setInvisible(true);
-            camera.setPosition(canvas.getSpawnPos());
-            camera.setYaw(canvas.getSpawnAngle());
-            world.spawnEntity(camera);
+            camera.setPos(canvas.getSpawnPos());
+            camera.setYRot(canvas.getSpawnAngle());
+            world.addFreshEntity(camera);
 
-            var leftAudio = EntityType.ITEM_DISPLAY.create(world, SpawnReason.LOAD);
+            var leftAudio = EntityType.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
             assert leftAudio != null;
             leftAudio.setInvisible(true);
-            leftAudio.setPosition(canvas.getSpawnPos().add(2, 0, 0));
-            world.spawnEntity(leftAudio);
+            leftAudio.setPos(canvas.getSpawnPos().add(2, 0, 0));
+            world.addFreshEntity(leftAudio);
 
-            var rightAudio = EntityType.ITEM_DISPLAY.create(world, SpawnReason.LOAD);
+            var rightAudio = EntityType.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
             assert rightAudio != null;
             rightAudio.setInvisible(true);
-            rightAudio.setPosition(canvas.getSpawnPos().add(-2, 0, 0));
-            world.spawnEntity(rightAudio);
+            rightAudio.setPos(canvas.getSpawnPos().add(-2, 0, 0));
+            world.addFreshEntity(rightAudio);
 
             ConsoleBoxGame phase = new ConsoleBoxGame(activity.getGameSpace(), world, config, canvas, camera, display);
             audioController.setOutput(camera, leftAudio, rightAudio, activity.getGameSpace().getPlayers()::sendPacket);
@@ -148,11 +150,11 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
     // Listeners
     @Override
-    public void onAddPlayer(ServerPlayerEntity player) {
+    public void onAddPlayer(ServerPlayer player) {
         this.display.addPlayer(player);
         this.display.getCanvas().addPlayer(player);
-        player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getIndex()));
-        player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.cameraEntity));
+        player.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, GameType.SPECTATOR.getId()));
+        player.connection.send(new ClientboundSetCameraPacket(this.cameraEntity));
     }
 
     @Override
@@ -163,7 +165,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     }
 
     @Override
-    public EventResult onPacket(ServerPlayerEntity player, Packet<?> packet) {
+    public EventResult onPacket(ServerPlayer player, Packet<?> packet) {
         int id = -1;
         for (int i = 0; i < 4; i++) {
             if (this.players[i] == player) {
@@ -176,19 +178,19 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
             return EventResult.PASS;
         }
 
-        if (packet instanceof PlayerInputC2SPacket playerInputC2SPacket) {
-            PlayerInput input = playerInputC2SPacket.input();
+        if (packet instanceof ServerboundPlayerInputPacket playerInputC2SPacket) {
+            Input input = playerInputC2SPacket.input();
 
-            var isJumping = this.config.swapXZ() ? input.sneak() : input.jump();
-            var isSneaking = !this.config.swapXZ() ? input.sneak() : input.jump();
+            var isJumping = this.config.swapXZ() ? input.shift() : input.jump();
+            var isSneaking = !this.config.swapXZ() ? input.shift() : input.jump();
 
             this.canvas.updateGamepad(id, input.forward(), input.left(), input.backward(), input.right(),
                     isSneaking, isJumping);
             if (input.sprint()) {
                 this.canvas.clearError();
             }
-        } else if (packet instanceof PlayerLoadedC2SPacket) {
-            player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.cameraEntity));
+        } else if (packet instanceof ServerboundPlayerLoadedPacket) {
+            player.connection.send(new ClientboundSetCameraPacket(this.cameraEntity));
         }
 
         return EventResult.PASS;
@@ -202,8 +204,8 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         }
 
         for (var player : this.gameSpace.getPlayers()) {
-            if (player.getCameraEntity() != this.cameraEntity && this.cameraEntity.age > 2) {
-                player.setCameraEntity(this.cameraEntity);
+            if (player.getCamera() != this.cameraEntity && this.cameraEntity.tickCount > 2) {
+                player.setCamera(this.cameraEntity);
             }
         }
     }
@@ -234,7 +236,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     // /game open {type:"consolebox:console_box", game:"consolebox:cart"}
     @Override
     public JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
-        Vec3d spawnPos = this.canvas.getSpawnPos();
+        Vec3 spawnPos = this.canvas.getSpawnPos();
 
         if (acceptor.intent().canPlay()) {
             for (int i = 0; i < players.length; i++) {
@@ -247,30 +249,30 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
                         this.players[x] = player;
                         this.playerCount++;
                         this.spawnMount(spawnPos.add(0, 10, 0), this.players[x]);
-                        this.initializePlayer(this.players[x], GameMode.SPECTATOR);
+                        this.initializePlayer(this.players[x], GameType.SPECTATOR);
                     });
                 }
             }
         }
 
-        Vec3d pos = spawnPos.add(this.config.spectatorSpawnOffset());
+        Vec3 pos = spawnPos.add(this.config.spectatorSpawnOffset());
         return acceptor.teleport(this.world, pos).thenRunForEach(player -> {
-            this.initializePlayer(player, GameMode.SPECTATOR);
+            this.initializePlayer(player, GameType.SPECTATOR);
         });
     }
 
     @Override
-    public EventResult onDamage(ServerPlayerEntity player, DamageSource source, float damage) {
+    public EventResult onDamage(ServerPlayer player, DamageSource source, float damage) {
         return EventResult.DENY;
     }
 
     @Override
-    public EventResult onDeath(ServerPlayerEntity player, DamageSource source) {
+    public EventResult onDeath(ServerPlayer player, DamageSource source) {
         return EventResult.DENY;
     }
 
     @Override
-    public void onRemovePlayer(ServerPlayerEntity player) {
+    public void onRemovePlayer(ServerPlayer player) {
         this.display.removePlayer(player);
         this.display.getCanvas().removePlayer(player);
 
@@ -293,44 +295,44 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     }
 
     // Utilities
-    private void spawnMount(Vec3d playerPos, ServerPlayerEntity player) {
-        MuleEntity mount = EntityType.MULE.create(this.world, SpawnReason.JOCKEY);
-        mount.calculateDimensions();
-        double y = playerPos.getY() - 1.25f;
-        mount.setPos(playerPos.getX(), y, playerPos.getZ() + 2);
-        mount.setYaw(this.canvas.getSpawnAngle());
+    private void spawnMount(Vec3 playerPos, ServerPlayer player) {
+        Mule mount = EntityType.MULE.create(this.world, EntitySpawnReason.JOCKEY);
+        mount.refreshDimensions();
+        double y = playerPos.y() - 1.25f;
+        mount.setPosRaw(playerPos.x(), y, playerPos.z() + 2);
+        mount.setYRot(this.canvas.getSpawnAngle());
 
-        mount.setAiDisabled(true);
+        mount.setNoAi(true);
         mount.setNoGravity(true);
         mount.setSilent(true);
-        mount.setPersistent();
+        mount.setPersistenceRequired();
         mount.setInvulnerable(true);
-        mount.getAttributeInstance(EntityAttributes.SCALE).setBaseValue(0);
+        mount.getAttribute(Attributes.SCALE).setBaseValue(0);
 
         // Prevent mount from being visible
-        mount.addStatusEffect(this.createInfiniteStatusEffect(StatusEffects.INVISIBILITY));
+        mount.addEffect(this.createInfiniteStatusEffect(MobEffects.INVISIBILITY));
         mount.setInvisible(true);
 
         // Remove mount hearts from HUD
-        mount.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(0);
+        mount.getAttribute(Attributes.MAX_HEALTH).setBaseValue(0);
 
-        this.world.spawnEntity(mount);
-        player.startRiding(mount, true);
+        this.world.addFreshEntity(mount);
+        player.startRiding(mount, true, false);
 
     }
 
-    private void initializePlayer(ServerPlayerEntity player, GameMode gameMode) {
-        player.changeGameMode(gameMode);
+    private void initializePlayer(ServerPlayer player, GameType gameMode) {
+        player.setGameMode(gameMode);
         player.setInvisible(true);
         player.setInvulnerable(true);
-        player.addStatusEffect(this.createInfiniteStatusEffect(StatusEffects.NIGHT_VISION));
-        player.addStatusEffect(this.createInfiniteStatusEffect(StatusEffects.INVISIBILITY));
+        player.addEffect(this.createInfiniteStatusEffect(MobEffects.NIGHT_VISION));
+        player.addEffect(this.createInfiniteStatusEffect(MobEffects.INVISIBILITY));
 
-        player.setYaw(this.canvas.getSpawnAngle());
-        player.setPitch(Float.MIN_VALUE);
+        player.setYRot(this.canvas.getSpawnAngle());
+        player.setXRot(Float.MIN_VALUE);
     }
 
-    private StatusEffectInstance createInfiniteStatusEffect(RegistryEntry<StatusEffect> statusEffect) {
-        return new StatusEffectInstance(statusEffect, StatusEffectInstance.INFINITE, 0, true, false);
+    private MobEffectInstance createInfiniteStatusEffect(Holder<MobEffect> statusEffect) {
+        return new MobEffectInstance(statusEffect, MobEffectInstance.INFINITE_DURATION, 0, true, false);
     }
 }

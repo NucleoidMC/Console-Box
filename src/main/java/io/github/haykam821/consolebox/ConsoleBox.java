@@ -6,14 +6,15 @@ import io.github.haykam821.consolebox.game.ConsoleBoxGame;
 import io.github.haykam821.consolebox.game.SaveHandler;
 import io.github.haykam821.consolebox.resource.ConsoleGameManager;
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 import xyz.nucleoid.plasmid.api.game.GameType;
+import xyz.nucleoid.plasmid.api.game.GameTypes;
 
 public class ConsoleBox implements ModInitializer {
 	public static final String MOD_ID = "consolebox";
 
 	private static final Identifier CONSOLE_BOX_ID = ConsoleBox.identifier("console_box");
-	public static final GameType<ConsoleBoxConfig> CONSOLE_BOX = GameType.register(CONSOLE_BOX_ID, ConsoleBoxConfig.CODEC, ConsoleBoxGame::open);
+	public static final GameType<ConsoleBoxConfig> CONSOLE_BOX = GameTypes.register(CONSOLE_BOX_ID, ConsoleBoxConfig.CODEC, ConsoleBoxGame::open);
 
 	@Override
 	public void onInitialize() {
@@ -22,6 +23,6 @@ public class ConsoleBox implements ModInitializer {
 	}
 
 	public static Identifier identifier(String path) {
-		return Identifier.of(MOD_ID, path);
+		return Identifier.fromNamespaceAndPath(MOD_ID, path);
 	}
 }

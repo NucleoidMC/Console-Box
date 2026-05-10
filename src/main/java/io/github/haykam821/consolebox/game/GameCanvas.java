@@ -19,10 +19,10 @@ import io.github.haykam821.consolebox.game.palette.GamePalette;
 import io.github.haykam821.consolebox.game.render.FramebufferRendering;
 import io.github.haykam821.consolebox.mixin.ParserAccessor;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.item.FilledMapItem;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.MapItem;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,8 +60,8 @@ public class GameCanvas {
     }
 
     private static final int RENDER_SCALE = 1;
-    private static final int MAP_SIZE = FilledMapItem.field_30907;
-    private static final int SECTION_SIZE = MathHelper.ceil(HardwareConstants.SCREEN_WIDTH * RENDER_SCALE / (double) MAP_SIZE);
+    private static final int MAP_SIZE = MapItem.IMAGE_WIDTH;
+    private static final int SECTION_SIZE = Mth.ceil(HardwareConstants.SCREEN_WIDTH * RENDER_SCALE / (double) MAP_SIZE);
     private static final int SECTION_HEIGHT = 6;
     private static final int SECTION_WIDTH = 8;
 
@@ -491,10 +491,10 @@ public class GameCanvas {
         return new BlockPos(-SECTION_WIDTH, SECTION_HEIGHT + 100, 0);
     }
 
-    public Vec3d getSpawnPos() {
+    public Vec3 getSpawnPos() {
         BlockPos displayPos = this.getDisplayPos();
 
-        return new Vec3d(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f + 1, 1.3);
+        return new Vec3(displayPos.getX() + SECTION_WIDTH * 0.5, displayPos.getY() - SECTION_HEIGHT * 0.5f + 1, 1.3);
     }
 
     public int getSpawnAngle() {
