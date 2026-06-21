@@ -18,6 +18,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.equine.Mule;
 import net.minecraft.world.entity.player.Input;
@@ -110,20 +111,20 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
             //world.setBlockState(BlockPos.ofFloored(canvas.getSpawnPos()), Blocks.BARRIER.getDefaultState());
 
-            var camera = EntityType.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
+            var camera = EntityTypes.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
             assert camera != null;
             camera.setInvisible(true);
             camera.setPos(canvas.getSpawnPos());
             camera.setYRot(canvas.getSpawnAngle());
             world.addFreshEntity(camera);
 
-            var leftAudio = EntityType.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
+            var leftAudio = EntityTypes.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
             assert leftAudio != null;
             leftAudio.setInvisible(true);
             leftAudio.setPos(canvas.getSpawnPos().add(2, 0, 0));
             world.addFreshEntity(leftAudio);
 
-            var rightAudio = EntityType.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
+            var rightAudio = EntityTypes.ITEM_DISPLAY.create(world, EntitySpawnReason.LOAD);
             assert rightAudio != null;
             rightAudio.setInvisible(true);
             rightAudio.setPos(canvas.getSpawnPos().add(-2, 0, 0));
@@ -296,7 +297,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
 
     // Utilities
     private void spawnMount(Vec3 playerPos, ServerPlayer player) {
-        Mule mount = EntityType.MULE.create(this.world, EntitySpawnReason.JOCKEY);
+        Mule mount = EntityTypes.MULE.create(this.world, EntitySpawnReason.JOCKEY);
         mount.refreshDimensions();
         double y = playerPos.y() - 1.25f;
         mount.setPosRaw(playerPos.x(), y, playerPos.z() + 2);
