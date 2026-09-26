@@ -307,7 +307,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
         mount.setNoGravity(true);
         mount.setSilent(true);
         mount.setPersistenceRequired();
-        mount.setInvulnerable(true);
+        mount.setPermanentlyInvulnerable(true);
         mount.getAttribute(Attributes.SCALE).setBaseValue(0);
 
         // Prevent mount from being visible
@@ -325,7 +325,7 @@ public class ConsoleBoxGame implements GamePlayerEvents.Add, GameActivityEvents.
     private void initializePlayer(ServerPlayer player, GameType gameMode) {
         player.setGameMode(gameMode);
         player.setInvisible(true);
-        player.setInvulnerable(true);
+        player.setPermanentlyInvulnerable(true);
         player.addEffect(this.createInfiniteStatusEffect(MobEffects.NIGHT_VISION));
         player.addEffect(this.createInfiniteStatusEffect(MobEffects.INVISIBILITY));
 
